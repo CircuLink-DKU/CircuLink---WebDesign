@@ -4,10 +4,13 @@
 
 **A second-hand marketplace & donation platform for Duke Kunshan University**
 
-[![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)](https://reactjs.org/)
-[![Next.js](https://img.shields.io/badge/Next.js-000000?style=for-the-badge&logo=next.js&logoColor=white)](https://nextjs.org/)
-[![Node.js](https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org/)
-[![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
+[![React](https://img.shields.io/badge/React_18-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)](https://reactjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Vite](https://img.shields.io/badge/Vite-646CFF?style=for-the-badge&logo=vite&logoColor=white)](https://vitejs.dev/)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?style=for-the-badge&logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
+[![Express](https://img.shields.io/badge/Express-000000?style=for-the-badge&logo=express&logoColor=white)](https://expressjs.com/)
+[![Supabase](https://img.shields.io/badge/Supabase-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white)](https://supabase.com/)
+[![Prisma](https://img.shields.io/badge/Prisma-2D3748?style=for-the-badge&logo=prisma&logoColor=white)](https://www.prisma.io/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
 
 *Connecting the DKU community — buy, sell, and donate with ease.*
@@ -18,11 +21,11 @@
 
 ## 📖 About
 
-CircuLink is a web platform designed exclusively for the Duke Kunshan University community. It combines a **second-hand marketplace** and a **donation board** in one place, making it easy for students, faculty, and staff to give items a second life — reducing waste and building community.
+CircuLink is a web platform designed exclusively for the **Duke Kunshan University** community. It combines a **second-hand marketplace** and a **donation board** in one place, making it easy for students, faculty, and staff to give items a second life — reducing waste and building community.
 
 - **Marketplace** — List and browse pre-owned items within the DKU campus
 - **Donation Hub** — Post or claim items for free, no exchange needed
-- **Community-first** — DKU NetID authentication keeps the platform safe and trusted
+- **Community-first** — Restricted to authenticated DKU community members
 
 ---
 
@@ -30,99 +33,95 @@ CircuLink is a web platform designed exclusively for the Duke Kunshan University
 
 > 📹 *Demo video coming soon — check back after the next release!*
 
-<!-- Once you have a video, replace the above line with:
-[![CircuLink Demo](https://img.youtube.com/vi/YOUR_VIDEO_ID/maxresdefault.jpg)](https://www.youtube.com/watch?v=YOUR_VIDEO_ID)
-Or for a local video file:
-https://github.com/CircuLink-DKU/CircuLink---WebDesign/assets/YOUR_VIDEO_FILE.mp4
--->
+<!-- Once you have a video, replace the above line with one of:
+     YouTube: [![CircuLink Demo](https://img.youtube.com/vi/YOUR_VIDEO_ID/maxresdefault.jpg)](https://www.youtube.com/watch?v=YOUR_VIDEO_ID)
+     GitHub-hosted mp4: paste the CDN link from dragging a video into any GitHub Issue -->
 
 ---
 
 ## 🏗️ Software Architecture
 
-CircuLink follows a **three-tier architecture** separating the user interface, business logic, and auxiliary services.
+CircuLink is a **single-page application (SPA)** with a lightweight Express auth server and Supabase as the cloud database backend.
 
 ```mermaid
 graph TB
-    subgraph Client["🖥️ Client Layer"]
-        Browser["User Browser"]
+    subgraph Client["🖥️ Client — Browser"]
+        SPA["Vite + React SPA\n(TypeScript + Tailwind)"]
     end
 
-    subgraph Frontend["⚛️ Frontend — Next.js / React"]
-        Pages["Pages & Components"]
-        SSR["Server-Side Rendering"]
-        State["State Management"]
-    end
-
-    subgraph Backend["🟢 Backend — Node.js / Express"]
-        AuthAPI["Auth API\n/api/auth"]
-        ItemsAPI["Items API\n/api/items"]
-        DonationAPI["Donations API\n/api/donations"]
-        UserAPI["User API\n/api/users"]
-    end
-
-    subgraph Services["🐍 Python Service — FastAPI / Flask"]
-        Search["Smart Search &\nFiltering"]
-        Recommend["Recommendation\nEngine"]
-        ImageProc["Image Processing\n& Validation"]
+    subgraph Auth["🔐 Auth Server — Express.js"]
+        JWT["JWT Issue & Refresh\n/api/auth/*"]
+        Upload["File Upload\nmulter middleware"]
     end
 
     subgraph Data["🗄️ Data Layer"]
-        DB[("Primary Database\nUser / Item / Donation data")]
-        Storage["Object Storage\nItem Images"]
+        Supabase[("Supabase\nPostgreSQL\n(Production)")]
+        SQLite[("SQLite via Prisma\n(Local Dev)")]
     end
 
-    Browser -->|"HTTPS"| Pages
-    Pages --> SSR
-    SSR -->|"REST API calls"| AuthAPI
-    State -->|"REST API calls"| ItemsAPI
-    State -->|"REST API calls"| DonationAPI
-    State -->|"REST API calls"| UserAPI
+    subgraph AI["🤖 AI Layer — Planned"]
+        LLM["OpenAI-compatible LLM\ngpt-4.1-mini"]
+        Rekognition["Amazon Rekognition\nImage Analysis"]
+        Bedrock["Amazon Bedrock\nFoundation Models"]
+    end
 
-    ItemsAPI -->|"Search queries"| Search
-    ItemsAPI -->|"Recommendations"| Recommend
-    ItemsAPI -->|"Image upload"| ImageProc
-
-    AuthAPI --> DB
-    ItemsAPI --> DB
-    DonationAPI --> DB
-    UserAPI --> DB
-    ImageProc --> Storage
+    SPA -->|"REST calls"| JWT
+    SPA -->|"Image upload"| Upload
+    SPA -->|"Direct via supabase-js"| Supabase
+    JWT -->|"Prisma ORM"| SQLite
+    JWT -->|"Prisma ORM"| Supabase
+    Upload -->|"Planned"| Rekognition
+    SPA -->|"Planned"| LLM
+    LLM -->|"Planned"| Bedrock
 
     classDef clientStyle fill:#dbeafe,stroke:#3b82f6,color:#1e3a8a
-    classDef frontendStyle fill:#fef3c7,stroke:#f59e0b,color:#78350f
-    classDef backendStyle fill:#dcfce7,stroke:#22c55e,color:#14532d
-    classDef serviceStyle fill:#fce7f3,stroke:#ec4899,color:#831843
+    classDef authStyle fill:#dcfce7,stroke:#22c55e,color:#14532d
     classDef dataStyle fill:#f3e8ff,stroke:#a855f7,color:#581c87
+    classDef aiStyle fill:#fef3c7,stroke:#f59e0b,color:#78350f
 
-    class Browser clientStyle
-    class Pages,SSR,State frontendStyle
-    class AuthAPI,ItemsAPI,DonationAPI,UserAPI backendStyle
-    class Search,Recommend,ImageProc serviceStyle
-    class DB,Storage dataStyle
+    class SPA clientStyle
+    class JWT,Upload authStyle
+    class Supabase,SQLite dataStyle
+    class LLM,Rekognition,Bedrock aiStyle
 ```
 
 ### Component Overview
 
 | Layer | Technology | Responsibility |
 |-------|-----------|----------------|
-| **Frontend** | Next.js + React | UI rendering, routing, SSR |
-| **Backend API** | Node.js + Express | Business logic, authentication, REST endpoints |
-| **Python Service** | FastAPI / Flask | Search, recommendations, image processing |
-| **Database** | (your DB here) | Persistent storage for users, items, donations |
-| **Object Storage** | (your storage) | Item listing images |
+| **Frontend SPA** | Vite + React 18 + TypeScript | UI, routing, state management |
+| **Styling** | Tailwind CSS + lucide-react | Component design system |
+| **Auth Server** | Express.js + JWT + bcryptjs | Token issue/refresh, file uploads |
+| **ORM** | Prisma | Type-safe DB access |
+| **Database (local)** | SQLite | Development database |
+| **Database (prod)** | Supabase (PostgreSQL) | Cloud database + auth |
+| **AI (planned)** | OpenAI-compatible API + Amazon Bedrock | Smart listings, recommendations |
 
 ---
 
 ## ✨ Features
 
-- 🛒 **Marketplace** — Post, browse, search, and filter second-hand items
+- 🛒 **Marketplace** — Post, browse, search, and filter second-hand items by category, price, and condition
 - 🎁 **Donation Board** — Give or receive items for free within the DKU community
-- 🔐 **DKU Authentication** — Secure login restricted to DKU community members
-- 🔍 **Smart Search** — Filter by category, price range, condition, and location on campus
-- 📸 **Image Uploads** — Add photos to listings with automatic validation
-- 💬 **In-App Messaging** — Contact sellers/donors directly through the platform
-- 📱 **Responsive Design** — Works on desktop and mobile
+- 🔐 **JWT Authentication** — Secure login with token refresh via the Express auth server
+- 📸 **Image Uploads** — Attach photos to listings via multer file handling
+- 🏷️ **Category System** — Items organized by Development Boards, Components, Tools, Kits, Displays, Power & Batteries
+- 📱 **Responsive Design** — Tailwind-first layout, works on desktop and mobile
+
+---
+
+## 🤖 AI Features (In Progress — with DKU AI Club × Amazon)
+
+CircuLink is integrating AI capabilities in collaboration with the **DKU AI Club**, supported by **Amazon Web Services**. The LLM endpoint is already configured in `.env.example`.
+
+| Feature | Status | AWS Service |
+|---------|--------|-------------|
+| **AI Listing Generator** — auto-fill title, description & category from item name | 🔜 Planned | Amazon Bedrock |
+| **Price Estimator** — suggest fair secondhand price by condition | 🔜 Planned | Amazon Bedrock |
+| **Image Auto-Categorization** — detect item type from photo | 🔜 Planned | Amazon Rekognition |
+| **Content Moderation** — flag inappropriate images & text | 🔜 Planned | Amazon Rekognition |
+| **Natural Language Search** — "cheap Arduino kit under 100 yuan" | 🔜 Planned | Amazon Bedrock |
+| **Donation Matching** — match donors with users who need similar items | 🔜 Planned | Amazon Bedrock |
 
 ---
 
@@ -131,8 +130,7 @@ graph TB
 ### Prerequisites
 
 - [Node.js](https://nodejs.org/) v18+
-- [Python](https://www.python.org/) 3.10+
-- [npm](https://www.npmjs.com/) or [yarn](https://yarnpkg.com/)
+- [npm](https://www.npmjs.com/) or [pnpm](https://pnpm.io/)
 
 ### Installation
 
@@ -141,38 +139,34 @@ graph TB
 git clone https://github.com/CircuLink-DKU/CircuLink---WebDesign.git
 cd CircuLink---WebDesign
 
-# 2. Install frontend dependencies
-cd frontend
+# 2. Install dependencies
 npm install
 
-# 3. Install backend dependencies
-cd ../backend
-npm install
-
-# 4. Install Python service dependencies
-cd ../services
-pip install -r requirements.txt
-
-# 5. Set up environment variables
+# 3. Set up environment variables
 cp .env.example .env
-# Edit .env with your configuration
+# Edit .env — set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY
+
+# 4. Set up the local database
+npx prisma migrate dev
+npx prisma generate
+
+# (Optional) Seed with sample data
+python insert-sample-data.py
 ```
 
 ### Running Locally
 
 ```bash
-# Start the backend (from /backend)
+# Terminal 1 — Start the Vite dev server (frontend)
 npm run dev
 
-# Start the Python service (from /services)
-uvicorn main:app --reload
-# or: python app.py
-
-# Start the frontend (from /frontend)
-npm run dev
+# Terminal 2 — Start the Express auth server (backend)
+cd server && npm install && npm start
 ```
 
-Then open [http://localhost:3000](http://localhost:3000) in your browser.
+Then open [http://localhost:5173](http://localhost:5173) in your browser.
+
+> The Express auth server runs on port `4000` by default (`VITE_API_URL=http://localhost:4000/api`).
 
 ---
 
@@ -180,24 +174,44 @@ Then open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ```
 CircuLink---WebDesign/
-├── frontend/               # Next.js / React application
-│   ├── pages/              # App routes and pages
-│   ├── components/         # Reusable UI components
-│   ├── styles/             # Global styles
-│   └── public/             # Static assets
-├── backend/                # Node.js / Express API server
-│   ├── routes/             # API route handlers
-│   ├── middleware/         # Auth, validation, error handling
-│   ├── models/             # Database models
-│   └── config/             # Configuration files
-├── services/               # Python microservice
-│   ├── search/             # Search & filtering logic
-│   ├── recommendations/    # Recommendation engine
-│   └── image/              # Image processing
-├── docs/                   # Documentation & assets
-│   └── architecture.md     # Architecture details
-└── .github/                # GitHub templates & workflows
+├── src/                        # Vite + React + TypeScript SPA
+│   ├── components/             # Reusable UI components
+│   ├── pages/                  # Route-level page components
+│   ├── hooks/                  # Custom React hooks
+│   ├── context/                # React context providers
+│   ├── lib/                    # Supabase client & utilities
+│   ├── data/                   # Static/seed data
+│   └── types/                  # TypeScript type definitions
+├── server/                     # Express.js auth server
+│   └── src/
+│       └── server.js           # JWT auth routes & multer uploads
+├── prisma/                     # Prisma ORM
+│   └── schema.prisma           # Database schema (User, Item, Category…)
+├── supabase/
+│   └── migrations/             # Supabase SQL migrations
+├── public/                     # Static assets served by Vite
+├── scripts/                    # Dev helper utilities
+├── docs/                       # Additional documentation
+├── .env.example                # Environment variable template
+├── vite.config.ts              # Vite configuration
+├── tailwind.config.js          # Tailwind CSS configuration
+└── tsconfig.json               # TypeScript configuration
 ```
+
+---
+
+## 🗄️ Data Model (Prisma)
+
+Key entities in `prisma/schema.prisma`:
+
+| Model | Key Fields |
+|-------|-----------|
+| **User** | `email`, `passwordHash`, `name`, `role` |
+| **Item** | `title`, `description`, `price`, `condition`, `status`, `images[]`, `sellerId`, `categoryId` |
+| **Category** | `name`, `slug` (e.g. `dev-boards`, `components`) |
+
+Item `condition` values: `LIKE_NEW`, `GOOD`
+Item `status` values: `ACTIVE`, `SOLD`, `DONATED`
 
 ---
 
@@ -205,24 +219,25 @@ CircuLink---WebDesign/
 
 We welcome contributions from the DKU community! Please read our [Contributing Guide](CONTRIBUTING.md) before submitting a pull request.
 
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/your-feature`)
-3. Commit your changes (`git commit -m 'Add some feature'`)
-4. Push to the branch (`git push origin feature/your-feature`)
-5. Open a Pull Request
+```bash
+git checkout -b feature/your-feature
+git commit -m "feat: describe your change"
+git push origin feature/your-feature
+# then open a Pull Request
+```
 
 ---
 
 ## 👥 Team
 
-Built with ❤️ by students at **Duke Kunshan University**.
+Built with ❤️ by students at **Duke Kunshan University**, in collaboration with the **DKU AI Club** and **Amazon Web Services**.
 
 | Role | Contact |
 |------|---------|
 | Project Lead | [@CircuLink-DKU](https://github.com/CircuLink-DKU) |
 | Frontend | — |
 | Backend | — |
-| Design | — |
+| AI / AWS | DKU AI Club |
 
 > Want to add your name? Open a PR and update this table!
 
