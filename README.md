@@ -1,391 +1,239 @@
-# DIC04-CircuLink
+<div align="center">
 
-CircuLink 是一个面向校园二手交易与捐赠场景的全栈项目。
+# 🔗 CircuLink
 
-当前主线技术方案已经统一为：
-- 后端与数据源：**Express + Prisma + PostgreSQL**
-- 前端：**Vite + React + TypeScript**
-- 包管理器：**npm**
+**A second-hand marketplace & donation platform for Duke Kunshan University**
 
-不再使用 Supabase 作为主数据源。
+[![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)](https://reactjs.org/)
+[![Next.js](https://img.shields.io/badge/Next.js-000000?style=for-the-badge&logo=next.js&logoColor=white)](https://nextjs.org/)
+[![Node.js](https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org/)
+[![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](LICENSE)
 
-## 1. 功能概览
+*Connecting the DKU community — buy, sell, and donate with ease.*
 
-当前已打通的核心链路：
-- 认证：注册、登录、刷新、登出、邮箱验证、找回密码
-- 商品：列表/搜索/筛选/分页、详情、发布、编辑、删除
-- 分类：分类列表、按分类浏览
-- 收藏：添加、移除、列表
-- 消息：会话列表、发送消息、已读
-- 订单：创建订单、状态流转、买卖双方视角
-- 上传：图片上传（文件类型校验、大小校验、静态访问）
-- 捐赠：独立捐赠提交流程；普通用户不可在 sell/items 中看到捐赠物品；管理员可在独立 Donation Admin 页面查看全部捐赠
-- 国际化：中英切换已覆盖主流程页面文案
-- 质量保障：`lint`、`build`、API smoke test、GitHub Actions CI（lint + build）
+</div>
 
-## 2. 技术栈
+---
 
-### Frontend
-- React 18
-- TypeScript
-- React Router
-- Vite
-- Tailwind CSS
-- Lucide Icons
+## 📖 About
 
-### Backend
-- Express
-- Zod（参数校验）
-- JWT（访问令牌 + 刷新令牌）
-- Multer（文件上传）
-- Pino（结构化日志）
+CircuLink is a web platform designed exclusively for the Duke Kunshan University community. It combines a **second-hand marketplace** and a **donation board** in one place, making it easy for students, faculty, and staff to give items a second life — reducing waste and building community.
 
-### Data
-- PostgreSQL
-- Prisma ORM
+- **Marketplace** — List and browse pre-owned items within the DKU campus
+- **Donation Hub** — Post or claim items for free, no exchange needed
+- **Community-first** — DKU NetID authentication keeps the platform safe and trusted
 
-## 3. 仓库结构
+---
 
-```text
-.
-├── src/                      # 前端应用（Vite + React + TS）
-│   ├── components/
-│   ├── pages/
-│   ├── context/
-│   ├── hooks/
-│   └── lib/
-├── server/src/               # 后端 TypeScript 主实现（当前主线）
-│   ├── modules/              # auth/items/orders/messages...
-│   ├── middleware/
-│   ├── routes/
-│   └── config/
-├── prisma/                   # Prisma schema、seed
-├── scripts/                  # smoke test 与辅助脚本
-├── docs/                     # API、TODO、项目文档
-├── public/                   # 前端静态资源
-├── uploads/                  # 本地上传目录（运行后生成/写入）
-└── .github/workflows/ci.yml  # CI：lint + build
+## 🎬 Demo
+
+> 📹 *Demo video coming soon — check back after the next release!*
+
+<!-- Once you have a video, replace the above line with:
+[![CircuLink Demo](https://img.youtube.com/vi/YOUR_VIDEO_ID/maxresdefault.jpg)](https://www.youtube.com/watch?v=YOUR_VIDEO_ID)
+Or for a local video file:
+https://github.com/CircuLink-DKU/CircuLink---WebDesign/assets/YOUR_VIDEO_FILE.mp4
+-->
+
+---
+
+## 🏗️ Software Architecture
+
+CircuLink follows a **three-tier architecture** separating the user interface, business logic, and auxiliary services.
+
+```mermaid
+graph TB
+    subgraph Client["🖥️ Client Layer"]
+        Browser["User Browser"]
+    end
+
+    subgraph Frontend["⚛️ Frontend — Next.js / React"]
+        Pages["Pages & Components"]
+        SSR["Server-Side Rendering"]
+        State["State Management"]
+    end
+
+    subgraph Backend["🟢 Backend — Node.js / Express"]
+        AuthAPI["Auth API\n/api/auth"]
+        ItemsAPI["Items API\n/api/items"]
+        DonationAPI["Donations API\n/api/donations"]
+        UserAPI["User API\n/api/users"]
+    end
+
+    subgraph Services["🐍 Python Service — FastAPI / Flask"]
+        Search["Smart Search &\nFiltering"]
+        Recommend["Recommendation\nEngine"]
+        ImageProc["Image Processing\n& Validation"]
+    end
+
+    subgraph Data["🗄️ Data Layer"]
+        DB[("Primary Database\nUser / Item / Donation data")]
+        Storage["Object Storage\nItem Images"]
+    end
+
+    Browser -->|"HTTPS"| Pages
+    Pages --> SSR
+    SSR -->|"REST API calls"| AuthAPI
+    State -->|"REST API calls"| ItemsAPI
+    State -->|"REST API calls"| DonationAPI
+    State -->|"REST API calls"| UserAPI
+
+    ItemsAPI -->|"Search queries"| Search
+    ItemsAPI -->|"Recommendations"| Recommend
+    ItemsAPI -->|"Image upload"| ImageProc
+
+    AuthAPI --> DB
+    ItemsAPI --> DB
+    DonationAPI --> DB
+    UserAPI --> DB
+    ImageProc --> Storage
+
+    classDef clientStyle fill:#dbeafe,stroke:#3b82f6,color:#1e3a8a
+    classDef frontendStyle fill:#fef3c7,stroke:#f59e0b,color:#78350f
+    classDef backendStyle fill:#dcfce7,stroke:#22c55e,color:#14532d
+    classDef serviceStyle fill:#fce7f3,stroke:#ec4899,color:#831843
+    classDef dataStyle fill:#f3e8ff,stroke:#a855f7,color:#581c87
+
+    class Browser clientStyle
+    class Pages,SSR,State frontendStyle
+    class AuthAPI,ItemsAPI,DonationAPI,UserAPI backendStyle
+    class Search,Recommend,ImageProc serviceStyle
+    class DB,Storage dataStyle
 ```
 
-说明：`server/` 下仍保留部分历史 `.js` 文件用于兼容/参考，当前开发与运行主线是 `server/src/*.ts` 与根目录脚本 `npm run dev:server`。
+### Component Overview
 
-## 4. 环境要求
+| Layer | Technology | Responsibility |
+|-------|-----------|----------------|
+| **Frontend** | Next.js + React | UI rendering, routing, SSR |
+| **Backend API** | Node.js + Express | Business logic, authentication, REST endpoints |
+| **Python Service** | FastAPI / Flask | Search, recommendations, image processing |
+| **Database** | (your DB here) | Persistent storage for users, items, donations |
+| **Object Storage** | (your storage) | Item listing images |
 
-- Node.js 20+（推荐 Node 22）
-- npm 9+
-- PostgreSQL（本地建议 Homebrew）
+---
 
-检查版本：
+## ✨ Features
+
+- 🛒 **Marketplace** — Post, browse, search, and filter second-hand items
+- 🎁 **Donation Board** — Give or receive items for free within the DKU community
+- 🔐 **DKU Authentication** — Secure login restricted to DKU community members
+- 🔍 **Smart Search** — Filter by category, price range, condition, and location on campus
+- 📸 **Image Uploads** — Add photos to listings with automatic validation
+- 💬 **In-App Messaging** — Contact sellers/donors directly through the platform
+- 📱 **Responsive Design** — Works on desktop and mobile
+
+---
+
+## 🚀 Getting Started
+
+### Prerequisites
+
+- [Node.js](https://nodejs.org/) v18+
+- [Python](https://www.python.org/) 3.10+
+- [npm](https://www.npmjs.com/) or [yarn](https://yarnpkg.com/)
+
+### Installation
 
 ```bash
-node -v
-npm -v
-psql --version
-```
+# 1. Clone the repository
+git clone https://github.com/CircuLink-DKU/CircuLink---WebDesign.git
+cd CircuLink---WebDesign
 
-## 5. 快速开始（本地）
-
-### 5.1 拉取代码并安装依赖
-
-```bash
-git clone git@github.com:404NotFound-Error/DIC04-Circulink.git
-cd DIC04-Circulink
+# 2. Install frontend dependencies
+cd frontend
 npm install
-```
 
-### 5.2 配置环境变量
+# 3. Install backend dependencies
+cd ../backend
+npm install
 
-```bash
+# 4. Install Python service dependencies
+cd ../services
+pip install -r requirements.txt
+
+# 5. Set up environment variables
 cp .env.example .env
+# Edit .env with your configuration
 ```
 
-`.env` 至少需要以下配置：
-
-```env
-# Frontend
-VITE_API_URL=http://localhost:4000/api
-VITE_TEST_EMAIL=test@example.com
-VITE_TEST_PASSWORD=password123
-VITE_ENABLE_DEV_AUTO_LOGIN=false
-
-# Backend
-NODE_ENV=development
-DATABASE_URL=postgresql://user:pass@localhost:5432/circulink
-JWT_SECRET=your-secret-key-change-in-production
-JWT_REFRESH_SECRET=your-refresh-secret-change-in-production
-JWT_ACCESS_TTL=15m
-JWT_REFRESH_TTL=7d
-BCRYPT_ROUNDS=10
-PORT=4000
-CORS_ORIGIN=http://localhost:5173
-UPLOAD_DIR=uploads
-OPENAI_API_KEY=
-OPENAI_BASE_URL=https://api.openai.com/v1
-OPENAI_MODEL=gpt-4.1-mini
-```
-
-后端变量说明：
-- `OPENAI_API_KEY`：配置后启用 LLM 图片识别；未配置时使用本地启发式兜底
-- `OPENAI_BASE_URL`：默认 `https://api.openai.com/v1`，支持 OpenAI 兼容网关
-- `OPENAI_MODEL`：默认 `gpt-4.1-mini`
-
-硅基流动（OpenAI 兼容）示例：
-
-```env
-OPENAI_API_KEY=sk-xxxx
-OPENAI_BASE_URL=https://api.siliconflow.com/v1
-OPENAI_MODEL=<your-siliconflow-model-id>
-```
-
-注意：`OPENAI_BASE_URL` 只填到 `/v1`，不要填写 `/chat/completions` 或 `/responses`。
-
-### 5.3 初始化数据库
-
-确保 PostgreSQL 已启动（macOS Homebrew 示例）：
+### Running Locally
 
 ```bash
-brew services start postgresql@18
-```
+# Start the backend (from /backend)
+npm run dev
 
-创建数据库（已存在可忽略错误）：
+# Start the Python service (from /services)
+uvicorn main:app --reload
+# or: python app.py
 
-```bash
-createdb circulink
-```
-
-同步 Prisma Schema：
-
-```bash
-npx prisma db push
-npm run prisma:generate
-```
-
-可选：导入种子数据
-
-```bash
-npm run prisma:seed
-```
-
-### 5.4 启动前后端
-
-终端 A（后端）：
-
-```bash
-npm run dev:server
-```
-
-终端 B（前端）：
-
-```bash
+# Start the frontend (from /frontend)
 npm run dev
 ```
 
-访问地址：
-- 前端：<http://localhost:5173>
-- 后端版本：<http://localhost:4000/api/version>
-- 后端健康检查：<http://localhost:4000/healthz>
+Then open [http://localhost:3000](http://localhost:3000) in your browser.
 
-## 6. 常用命令
+---
 
-```bash
-# Frontend
-npm run dev
-npm run build
-npm run preview
-npm run lint
+## 📁 Project Structure
 
-# Backend
-npm run dev:server
-npm run build:server
-npm run start:server
-
-# Prisma
-npm run prisma:generate
-npm run prisma:migrate
-npm run prisma:studio
-npm run prisma:seed
+```
+CircuLink---WebDesign/
+├── frontend/               # Next.js / React application
+│   ├── pages/              # App routes and pages
+│   ├── components/         # Reusable UI components
+│   ├── styles/             # Global styles
+│   └── public/             # Static assets
+├── backend/                # Node.js / Express API server
+│   ├── routes/             # API route handlers
+│   ├── middleware/         # Auth, validation, error handling
+│   ├── models/             # Database models
+│   └── config/             # Configuration files
+├── services/               # Python microservice
+│   ├── search/             # Search & filtering logic
+│   ├── recommendations/    # Recommendation engine
+│   └── image/              # Image processing
+├── docs/                   # Documentation & assets
+│   └── architecture.md     # Architecture details
+└── .github/                # GitHub templates & workflows
 ```
 
-## 7. 管理员账号设置（Donation Admin）
+---
 
-`/admin/donations` 仅允许 `User.role = 'ADMIN'` 的账号访问。
+## 🤝 Contributing
 
-### 7.1 SQL 方式（推荐）
+We welcome contributions from the DKU community! Please read our [Contributing Guide](CONTRIBUTING.md) before submitting a pull request.
 
-在项目根目录终端执行（先读取 `.env` 里的 `DATABASE_URL`）：
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/your-feature`)
+3. Commit your changes (`git commit -m 'Add some feature'`)
+4. Push to the branch (`git push origin feature/your-feature`)
+5. Open a Pull Request
 
-```bash
-set -a
-source .env
-set +a
-psql "$DATABASE_URL"
-```
+---
 
-进入 `psql` 后执行：
+## 👥 Team
 
-```sql
--- 先全部设为普通用户
-UPDATE "User" SET "role" = 'USER';
+Built with ❤️ by students at **Duke Kunshan University**.
 
--- 指定唯一管理员（把邮箱替换成你的管理员账号）
-UPDATE "User" SET "role" = 'ADMIN' WHERE "email" = 'your-admin@email.com';
-```
+| Role | Contact |
+|------|---------|
+| Project Lead | [@CircuLink-DKU](https://github.com/CircuLink-DKU) |
+| Frontend | — |
+| Backend | — |
+| Design | — |
 
-### 7.2 Prisma Studio 方式
+> Want to add your name? Open a PR and update this table!
 
-在项目根目录终端执行：
+---
 
-```bash
-npm run prisma:studio
-```
+## 📄 License
 
-打开 `User` 表，手动把目标账号的 `role` 改为 `ADMIN`，其余保持 `USER`。
+This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
 
-注意：
-- 修改 role 后请重新登录该账号（JWT 中包含角色信息）。
-- 若之后重新执行 `npm run prisma:seed`，可能把测试账号角色重置为 `USER`（以 seed 内容为准）。
+---
 
-## 8. API 概览
-
-Base URL（本地）：
-
-```text
-http://localhost:4000/api
-```
-
-主要模块：
-- `GET /version`
-- `GET /metrics`
-- `POST /auth/*` / `GET /auth/me`
-- `GET /categories`
-- `GET/POST/PATCH/DELETE /items`
-- `POST /donations`（登录用户提交捐赠）
-- `GET /donations`（仅 ADMIN 可查看捐赠列表）
-- `GET /donations/:id`（仅 ADMIN 可查看捐赠详情）
-- `GET/POST/DELETE /favorites`
-- `GET/POST/PATCH /messages`
-- `GET/POST/PATCH /orders`
-- `POST /uploads`（`multipart/form-data`，字段名 `file`）
-
-完整文档见：
-- `docs/api.md`
-- `docs/foundation.md`
-
-## 9. 上传与图片说明
-
-- 上传接口：`POST /api/uploads`
-- 认证：需要登录（Bearer Token）
-- 支持类型：`image/jpeg` `image/png` `image/webp` `image/gif`
-- 大小限制：**单张 10MB**
-- 返回示例：
-
-```json
-{
-  "data": {
-    "path": "/uploads/2026/03/12/1741770000000-xxx.jpg"
-  }
-}
-```
-
-前端发布/捐赠流程会先上传图片，再提交商品数据。
-
-## 10. 测试与联调
-
-### 10.1 本地最小回归
-
-```bash
-npm run lint
-npm run build
-```
-
-### 10.2 API 冒烟测试
-
-后端运行时执行：
-
-```bash
-bash scripts/api-smoke-test.sh
-```
-
-脚本覆盖：
-- Auth 全链路
-- Categories/Items/Favorites
-- Messages
-- Orders
-
-若数据库里没有分类，脚本会自动创建 smoke test 分类再继续。
-
-### 10.3 CI
-
-仓库已配置 GitHub Actions：
-- 文件：`.github/workflows/ci.yml`
-- 触发：`push` / `pull_request`
-- 任务：`npm ci` + `npm run lint` + `npm run build`
-
-## 10. 当前状态与未完成项
-
-已完成项请见：
-- `docs/todo.md`（持续更新）
-
-当前仍需推进的主要项：
-- AI 推荐页接入真实后端推荐 API（当前仍有样例占位）
-- 可访问性与移动端细节持续优化
-- 自动化测试（单元/集成）补齐
-- 部署与运维文档
-
-## 11. 常见问题（Troubleshooting）
-
-### 11.1 `react-router-dom` 无法解析
-
-```bash
-npm install
-```
-
-若曾混用包管理器，建议清理后重装：
-
-```bash
-rm -rf node_modules package-lock.json
-npm install
-```
-
-### 11.2 `npm install` 报 `ENOTDIR`
-
-通常是 `node_modules` 异常文件导致：
-
-```bash
-rm -rf node_modules
-npm install
-```
-
-### 11.3 `EADDRINUSE: address already in use :::4000`
-
-说明 4000 端口已有进程占用，先结束旧进程或换端口（`PORT`）。
-
-### 11.4 `prisma db push` 提示需要 reset
-
-开发环境如果确认可清库，可选择 `yes` 重置；生产环境不要这样做。
-
-### 11.5 上传报错 `PayloadTooLargeError` 或 413
-
-- 确保不要把 base64 大图塞进 JSON 请求
-- 走 `POST /api/uploads` 上传文件，再提交图片路径
-- 单张图片需小于等于 10MB
-
-## 12. 开发协作建议
-
-- 提交信息使用简短祈使句
-- 提交前建议执行：
-
-```bash
-npm run lint
-npm run build
-bash scripts/api-smoke-test.sh
-```
-
-- 大功能变更同步更新：
-  - `docs/todo.md`
-  - `docs/api.md`
-  - 本 README
-
-## 13. License
-
-当前仓库未声明开源许可证。如需开源，请补充 `LICENSE` 文件并在 README 更新许可说明。
+<div align="center">
+  Made at Duke Kunshan University 🎓
+</div>
