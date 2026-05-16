@@ -131,6 +131,20 @@ CircuLink is integrating AI capabilities in collaboration with the **DKU AI Club
 
 - [Node.js](https://nodejs.org/) v18+
 - [npm](https://www.npmjs.com/) or [pnpm](https://pnpm.io/)
+  
+### Check your versions with:
+```bash
+node -v
+npm -v
+psql --version
+```
+
+### Install PostgreSQL (Mac)
+```bash
+brew install postgresql@18
+brew services start postgresql@18
+```
+
 
 ### Installation
 
@@ -140,28 +154,33 @@ git clone https://github.com/CircuLink-DKU/CircuLink---WebDesign.git
 cd CircuLink---WebDesign
 
 # 2. Install dependencies
-npm install
+pnpm install
 
 # 3. Set up environment variables
 cp .env.example .env
 # Edit .env — set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY
+# open .env in a text editor and set your database username (usually your Mac username): DATABASE_URL=postgresql://YOUR_USERNAME@localhost:5432/circulink
+
+#Example (env):
+DATABASE_URL=postgresql://yt@localhost:5432/circulink
+
 
 # 4. Set up the local database
-npx prisma migrate dev
+createdb circulink
 npx prisma generate
-
-# (Optional) Seed with sample data
-python insert-sample-data.py
+npx prisma db push
 ```
 
 ### Running Locally
 
 ```bash
-# Terminal 1 — Start the Vite dev server (frontend)
-npm run dev
+# Terminal 1 — Run this from the root directory (Backend)
+npm run dev:server
+# you will see: Server running on port: 4000
 
-# Terminal 2 — Start the Express auth server (backend)
-cd server && npm install && npm start
+# Terminal 2 — Run this from the root directory (Fronted)
+npm run dev
+# you will see: Local: http://localhost:5173/
 ```
 
 Then open [http://localhost:5173](http://localhost:5173) in your browser.
