@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "npm run build:client && npm run build:server",
+    "build:client": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
     "dev:server": "tsx watch server/src/index.ts",

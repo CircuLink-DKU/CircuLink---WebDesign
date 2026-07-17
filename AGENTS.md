@@ -3,12 +3,12 @@
 ## 项目结构与模块组织 / Project Structure & Module Organization
 - `src/` 是 Vite + React + TypeScript 应用主目录，包含 `src/components/`、`src/pages/`、`src/hooks/`、`src/context/`、`src/lib/`、`src/data/`、`src/types/` 等。
 - `public/` 存放 Vite 直接服务的静态资源（根目录下）。另有 `src/public/` 用于应用内引用的资源。
-- `server/` 是基于 Express 的模拟认证服务（入口 `server/src/server.js`）。
+- `server/` 是基于 Express + TypeScript 的后端服务（入口 `server/src/index.ts`）。
 - `supabase/migrations/` 存放数据库迁移文件。
 - `scripts/` 存放辅助脚本，如 `scripts/login-testinguser.mjs`。
 - `src/` is the main Vite + React + TypeScript app. Key folders: `src/components/`, `src/pages/`, `src/hooks/`, `src/context/`, `src/lib/`, `src/data/`, `src/types/`.
 - `public/` holds static assets served by Vite (root). There is also `src/public/` for app-referenced assets.
-- `server/` contains a small Express-based mock auth server (`server/src/server.js`).
+- `server/` contains the Express + TypeScript backend server (`server/src/index.ts`).
 - `supabase/migrations/` tracks database migrations.
 - `scripts/` stores helper utilities like `scripts/login-testinguser.mjs`.
 
@@ -18,13 +18,13 @@
 - `npm run build`：构建生产版本，输出到 `dist/`。
 - `npm run preview`：本地预览生产构建。
 - `npm run lint`：运行 ESLint，对代码进行静态检查。
-- `cd server && npm install && npm start`：启动模拟认证服务。
+- `npm run dev:server`：启动后端 API 服务（默认 http://localhost:4000）。
 - `npm install` (or `pnpm install`): install dependencies.
 - `npm run dev`: start the Vite dev server.
 - `npm run build`: produce a production build in `dist/`.
 - `npm run preview`: serve the production build locally.
 - `npm run lint`: run ESLint for static code checks.
-- `cd server && npm install && npm start`: run the mock auth server.
+- `npm run dev:server`: run the backend API server (defaults to http://localhost:4000).
 
 ## 编码风格与命名约定 / Coding Style & Naming Conventions
 - TypeScript + React，使用 ES 模块；组件以函数式为主，文件为 `.tsx`。
