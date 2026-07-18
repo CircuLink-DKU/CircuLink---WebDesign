@@ -15,6 +15,7 @@ export const listDonationsSchema = z.object({
     q: z.string().optional(),
     categoryId: z.string().optional(),
     sellerId: z.string().optional(),
+    donorId: z.string().optional(),
     page: z.coerce.number().int().positive().optional(),
     pageSize: z.coerce.number().int().positive().optional()
   }),
@@ -27,4 +28,3 @@ export const getDonationSchema = z.object({
   query: z.object({}),
   body: z.object({})
 });
-

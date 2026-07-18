@@ -6,8 +6,11 @@ import { env } from "../config/env.js";
 export type AuthUser = {
   id: string;
   email?: string;
-  role?: string;
+  role?: UserRole | string;
 };
+
+export const USER_ROLES = ["USER", "ADMIN", "CLUB_OPERATOR", "BUY42_PARTNER"] as const;
+export type UserRole = (typeof USER_ROLES)[number];
 
 export const authenticate: RequestHandler = (req, _res, next) => {
   const header = req.headers.authorization;
@@ -43,6 +46,25 @@ export const requireAuth: RequestHandler = (req, _res, next) => {
 
 export const requireAdmin: RequestHandler = (req, _res, next) => {
   if (!req.user) return next(new AuthError());
-  if (req.user.role !== "ADMIN") return next(new ForbiddenError("Admin access required"));
+  if (!hasRole(req.user, "ADMIN")) return next(new ForbiddenError("Admin access required"));
   return next();
 };
+
+export const hasRole = (user: AuthUser | undefined, ...roles: UserRole[]) => {
+  if (!user?.role) return false;
+  return roles.includes(user.role as UserRole);
+};
+
+export const requireRole =
+  (...roles: UserRole[]): RequestHandler =>
+  (req, _res, next) => {
+    if (!req.user) return next(new AuthError());
+    if (!hasRole(req.user, ...roles)) {
+      return next(new ForbiddenError(`${roles.join(" or ")} access required`));
+    }
+    return next();
+  };
+
+export const requireClubOperator = requireRole("CLUB_OPERATOR");
+export const requireBuy42Partner = requireRole("BUY42_PARTNER");
+export const requireAdminOrClubOperator = requireRole("ADMIN", "CLUB_OPERATOR");

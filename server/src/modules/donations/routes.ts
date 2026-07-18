@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { asyncHandler } from "../../utils/async-handler.js";
-import { requireAdmin, requireAuth } from "../../middleware/auth.js";
+import { requireAdminOrClubOperator, requireAuth } from "../../middleware/auth.js";
 import { validate } from "../../middleware/validate.js";
 import {
   createDonationController,
@@ -12,8 +12,7 @@ import { createDonationSchema, getDonationSchema, listDonationsSchema } from "./
 const router = Router();
 
 router.post("/", requireAuth, validate(createDonationSchema), asyncHandler(createDonationController));
-router.get("/", requireAuth, requireAdmin, validate(listDonationsSchema), asyncHandler(listDonationsController));
-router.get("/:id", requireAuth, requireAdmin, validate(getDonationSchema), asyncHandler(getDonationController));
+router.get("/", requireAuth, requireAdminOrClubOperator, validate(listDonationsSchema), asyncHandler(listDonationsController));
+router.get("/:id", requireAuth, requireAdminOrClubOperator, validate(getDonationSchema), asyncHandler(getDonationController));
 
 export default router;
-
