@@ -3,12 +3,15 @@ import { prisma } from "../../lib/prisma.js";
 import { normalizePagination } from "../../utils/pagination.js";
 import { NotFoundError } from "../../utils/errors.js";
 import { serializeImages, withParsedImages } from "../../utils/images.js";
+import { assessDonationSubmission } from "../reviews/rules.js";
 
 type DonationListInput = {
   q?: string;
   categoryId?: string;
   sellerId?: string;
   donorId?: string;
+  status?: string;
+  reviewStatus?: string;
   page?: number;
   pageSize?: number;
 };
@@ -56,6 +59,8 @@ export const listDonations = async (filters: DonationListInput) => {
   const where = {
     ...(filters.categoryId ? { categoryId: filters.categoryId } : {}),
     ...(filters.donorId || filters.sellerId ? { donorId: filters.donorId ?? filters.sellerId } : {}),
+    ...(filters.status ? { status: filters.status } : { status: "ACTIVE" }),
+    ...(filters.reviewStatus ? { reviewStatus: filters.reviewStatus } : { reviewStatus: "APPROVED" }),
     ...(filters.q ? { description: { contains: filters.q } } : {})
   };
 
@@ -99,19 +104,52 @@ export const getDonationById = async (id: string) => {
 
 export const createDonation = async (donorId: string, data: CreateDonationInput) => {
   const description = data.description.trim();
-  const donation = await prisma.donation.create({
-    data: {
-      description,
-      status: "ACTIVE",
-      reviewStatus: "APPROVED",
-      categoryId: data.categoryId,
-      images: serializeImages(data.images),
-      donorId
-    },
-    include: {
-      category: true,
-      donor: { select: { id: true, email: true, name: true } }
+  const category = await prisma.category.findUnique({
+    where: { id: data.categoryId },
+    select: { id: true, name: true, slug: true }
+  });
+  if (!category) throw new NotFoundError("Category not found");
+
+  const assessment = assessDonationSubmission({
+    description,
+    images: data.images,
+    category
+  });
+  const status = assessment.shouldReview ? "PENDING_REVIEW" : "ACTIVE";
+  const reviewStatus = assessment.shouldReview ? "PENDING_REVIEW" : "APPROVED";
+
+  const donation = await prisma.$transaction(async (tx) => {
+    const created = await tx.donation.create({
+      data: {
+        description,
+        status,
+        reviewStatus,
+        categoryId: data.categoryId,
+        images: serializeImages(data.images),
+        donorId
+      },
+      include: {
+        category: true,
+        donor: { select: { id: true, email: true, name: true } }
+      }
+    });
+
+    if (assessment.shouldReview) {
+      await tx.reviewQueue.create({
+        data: {
+          targetType: "DONATION",
+          targetId: created.id,
+          submissionType: "NEW_DONATION",
+          submittedById: donorId,
+          status: "PENDING",
+          riskLevel: assessment.riskLevel,
+          flags: JSON.stringify(assessment.flags),
+          summary: assessment.summary
+        }
+      });
     }
+
+    return created;
   });
 
   return toCompatibleDonation(donation);

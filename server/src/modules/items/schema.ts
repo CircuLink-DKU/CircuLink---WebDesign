@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 const conditionEnum = z.enum(["NEW", "LIKE_NEW", "GOOD", "FAIR"]);
-const statusEnum = z.enum(["DRAFT", "ACTIVE", "SOLD", "ARCHIVED"]);
+const statusEnum = z.enum(["DRAFT", "PENDING_REVIEW", "ACTIVE", "REJECTED", "SOLD", "ARCHIVED", "HIDDEN"]);
 
 export const listItemsSchema = z.object({
   query: z.object({
