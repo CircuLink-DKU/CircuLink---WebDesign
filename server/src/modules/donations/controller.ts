@@ -12,6 +12,8 @@ export const listDonationsController = async (req: Request, res: Response) => {
     categoryId: req.query.categoryId as string | undefined,
     sellerId: req.query.sellerId as string | undefined,
     donorId: req.query.donorId as string | undefined,
+    status: req.query.status as string | undefined,
+    reviewStatus: req.query.reviewStatus as string | undefined,
     page: req.query.page ? Number(req.query.page) : undefined,
     pageSize: req.query.pageSize ? Number(req.query.pageSize) : undefined
   });

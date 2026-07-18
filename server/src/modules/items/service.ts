@@ -4,10 +4,11 @@ import { normalizePagination } from "../../utils/pagination.js";
 import { ForbiddenError, NotFoundError } from "../../utils/errors.js";
 import { serializeImages, withParsedImages } from "../../utils/images.js";
 import { DONATION_DESCRIPTION_PREFIX, isDonationDescription } from "../donations/utils.js";
+import { assessListingSubmission } from "../reviews/rules.js";
 
 // Define types as string constants since SQLite doesn't support enums
 type Condition = "NEW" | "LIKE_NEW" | "GOOD" | "FAIR";
-type ItemStatus = "DRAFT" | "ACTIVE" | "SOLD" | "ARCHIVED";
+type ItemStatus = "DRAFT" | "PENDING_REVIEW" | "ACTIVE" | "REJECTED" | "SOLD" | "ARCHIVED" | "HIDDEN";
 
 export type ListItemsInput = {
   categoryId?: string;
@@ -33,7 +34,7 @@ export const listItems = async (filters: ListItemsInput) => {
   if (filters.categoryId) where.categoryId = filters.categoryId;
   if (filters.sellerId) where.sellerId = filters.sellerId;
   if (filters.condition) where.condition = filters.condition;
-  if (filters.status) where.status = filters.status;
+  where.status = filters.status ?? "ACTIVE";
   if (filters.q) {
     where.OR = [
       { title: { contains: filters.q } },
@@ -94,18 +95,53 @@ export type CreateItemInput = {
 };
 
 export const createItem = async (sellerId: string, data: CreateItemInput) => {
-  const item = await prisma.item.create({
-    data: {
-      title: data.title,
-      description: data.description,
-      price: data.price,
-      condition: data.condition,
-      status: data.status,
-      categoryId: data.categoryId,
-      images: serializeImages(data.images),
-      sellerId
-    }
+  const category = await prisma.category.findUnique({
+    where: { id: data.categoryId },
+    select: { id: true, name: true, slug: true }
   });
+  if (!category) throw new NotFoundError("Category not found");
+
+  const assessment = assessListingSubmission({
+    title: data.title,
+    description: data.description,
+    price: data.price,
+    images: data.images,
+    category
+  });
+  const status = assessment.shouldReview ? "PENDING_REVIEW" : data.status;
+
+  const item = await prisma.$transaction(async (tx) => {
+    const created = await tx.item.create({
+      data: {
+        title: data.title,
+        description: data.description,
+        price: data.price,
+        condition: data.condition,
+        status,
+        categoryId: data.categoryId,
+        images: serializeImages(data.images),
+        sellerId
+      }
+    });
+
+    if (assessment.shouldReview) {
+      await tx.reviewQueue.create({
+        data: {
+          targetType: "ITEM",
+          targetId: created.id,
+          submissionType: "NEW_LISTING",
+          submittedById: sellerId,
+          status: "PENDING",
+          riskLevel: assessment.riskLevel,
+          flags: JSON.stringify(assessment.flags),
+          summary: assessment.summary
+        }
+      });
+    }
+
+    return created;
+  });
+
   return withParsedImages(item);
 };
 

@@ -16,6 +16,8 @@ export const listDonationsSchema = z.object({
     categoryId: z.string().optional(),
     sellerId: z.string().optional(),
     donorId: z.string().optional(),
+    status: z.enum(["PENDING_REVIEW", "ACTIVE", "REJECTED", "RESERVED", "CLAIMED", "ARCHIVED", "HIDDEN"]).optional(),
+    reviewStatus: z.enum(["APPROVED", "PENDING_REVIEW", "REJECTED"]).optional(),
     page: z.coerce.number().int().positive().optional(),
     pageSize: z.coerce.number().int().positive().optional()
   }),

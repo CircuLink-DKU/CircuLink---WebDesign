@@ -8,6 +8,7 @@ import uploadsRouter from "../modules/uploads/routes.js";
 import authRouter from "../modules/auth/routes.js";
 import donationsRouter from "../modules/donations/routes.js";
 import aiRouter from "../modules/ai/routes.js";
+import reviewsRouter from "../modules/reviews/routes.js";
 
 export const router = Router();
 
@@ -20,3 +21,4 @@ router.use("/orders", ordersRouter);
 router.use("/uploads", uploadsRouter);
 router.use("/donations", donationsRouter);
 router.use("/ai", aiRouter);
+router.use("/reviews", reviewsRouter);
