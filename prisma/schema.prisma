@@ -11,9 +11,11 @@ datasource db {
 // To run seeds: npm run prisma:seed
 
 // Note: enums are validated in app layer for now
-// Role: USER, ADMIN
+// Role: USER, ADMIN, CLUB_OPERATOR, BUY42_PARTNER
 // Condition: NEW, LIKE_NEW, GOOD, FAIR
 // ItemStatus: DRAFT, ACTIVE, SOLD, ARCHIVED
+// DonationStatus: ACTIVE, RESERVED, CLAIMED, ARCHIVED, HIDDEN
+// ReviewStatus: APPROVED, PENDING_REVIEW, REJECTED
 // OrderStatus: PENDING, ACCEPTED, REJECTED, PAID, SHIPPED, COMPLETED, CANCELLED
 
 model User {
@@ -25,6 +27,7 @@ model User {
   emailVerifiedAt DateTime?
   profile       Profile?
   items         Item[]
+  donations     Donation[]
   favorites     Favorite[]
   messages      Message[]
   threadsAsBuyer  MessageThread[] @relation("buyerThreads")
@@ -37,6 +40,27 @@ model User {
   itemViews     ItemView[]
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
+}
+
+model Donation {
+  id           String   @id @default(cuid())
+  description  String
+  status       String   @default("ACTIVE")
+  reviewStatus String   @default("APPROVED")
+  categoryId   String
+  donorId      String
+  images       String
+  category     Category @relation(fields: [categoryId], references: [id])
+  donor        User     @relation(fields: [donorId], references: [id])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([categoryId])
+  @@index([donorId])
+  @@index([status])
+  @@index([reviewStatus])
+  @@index([createdAt])
+  @@index([categoryId, status, createdAt])
 }
 
 model Profile {
@@ -57,6 +81,7 @@ model Category {
   name      String
   slug      String   @unique
   items     Item[]
+  donations Donation[]
   createdAt DateTime @default(now())
 }
 

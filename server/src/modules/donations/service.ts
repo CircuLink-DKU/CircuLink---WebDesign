@@ -1,19 +1,14 @@
-import { Prisma } from "@prisma/client";
+import { Donation, Category, User } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
 import { normalizePagination } from "../../utils/pagination.js";
 import { NotFoundError } from "../../utils/errors.js";
 import { serializeImages, withParsedImages } from "../../utils/images.js";
-import {
-  DONATION_DESCRIPTION_PREFIX,
-  isDonationDescription,
-  toDonationDescription,
-  toDonationTitle
-} from "./utils.js";
 
 type DonationListInput = {
   q?: string;
   categoryId?: string;
   sellerId?: string;
+  donorId?: string;
   page?: number;
   pageSize?: number;
 };
@@ -24,34 +19,62 @@ type CreateDonationInput = {
   images: string[];
 };
 
+type DonationWithRelations = Donation & {
+  category: Category;
+  donor: Pick<User, "id" | "email" | "name">;
+};
+
+const toDonationTitle = (description: string) => {
+  const trimmed = description.trim();
+  return `Donation: ${trimmed.substring(0, 50)}${trimmed.length > 50 ? "..." : ""}`;
+};
+
+const toCompatibleDonation = (donation: DonationWithRelations) => {
+  const parsed = withParsedImages(donation);
+  return {
+    id: parsed.id,
+    title: toDonationTitle(parsed.description),
+    description: parsed.description,
+    price: 0,
+    condition: "GOOD",
+    status: parsed.status,
+    reviewStatus: parsed.reviewStatus,
+    categoryId: parsed.categoryId,
+    sellerId: parsed.donorId,
+    donorId: parsed.donorId,
+    images: parsed.images,
+    category: parsed.category,
+    seller: parsed.donor,
+    donor: parsed.donor,
+    createdAt: parsed.createdAt,
+    updatedAt: parsed.updatedAt
+  };
+};
+
 export const listDonations = async (filters: DonationListInput) => {
   const { page, pageSize, skip, take } = normalizePagination(filters);
-  const where: Prisma.ItemWhereInput = {
-    description: { startsWith: DONATION_DESCRIPTION_PREFIX }
+  const where = {
+    ...(filters.categoryId ? { categoryId: filters.categoryId } : {}),
+    ...(filters.donorId || filters.sellerId ? { donorId: filters.donorId ?? filters.sellerId } : {}),
+    ...(filters.q ? { description: { contains: filters.q } } : {})
   };
 
-  if (filters.categoryId) where.categoryId = filters.categoryId;
-  if (filters.sellerId) where.sellerId = filters.sellerId;
-  if (filters.q) {
-    where.OR = [{ title: { contains: filters.q } }, { description: { contains: filters.q } }];
-  }
-
-  const [items, total] = await prisma.$transaction([
-    prisma.item.findMany({
+  const [donations, total] = await prisma.$transaction([
+    prisma.donation.findMany({
       where,
       orderBy: { createdAt: "desc" },
       skip,
       take,
       include: {
         category: true,
-        seller: { select: { id: true, email: true, name: true } }
+        donor: { select: { id: true, email: true, name: true } }
       }
     }),
-    prisma.item.count({ where })
+    prisma.donation.count({ where })
   ]);
 
   return {
-    items: items.map(withParsedImages),
+    items: donations.map(toCompatibleDonation),
     total,
     page,
     pageSize
@@ -59,40 +82,37 @@ export const listDonations = async (filters: DonationListInput) => {
 };
 
 export const getDonationById = async (id: string) => {
-  const item = await prisma.item.findUnique({
+  const donation = await prisma.donation.findUnique({
     where: { id },
     include: {
       category: true,
-      seller: { select: { id: true, email: true, name: true } }
+      donor: { select: { id: true, email: true, name: true } }
     }
   });
 
-  if (!item || !isDonationDescription(item.description)) {
+  if (!donation) {
     throw new NotFoundError("Donation not found");
   }
 
-  return withParsedImages(item);
+  return toCompatibleDonation(donation);
 };
 
-export const createDonation = async (sellerId: string, data: CreateDonationInput) => {
+export const createDonation = async (donorId: string, data: CreateDonationInput) => {
   const description = data.description.trim();
-  const item = await prisma.item.create({
+  const donation = await prisma.donation.create({
     data: {
-      title: toDonationTitle(description),
-      description: toDonationDescription(description),
-      price: 0,
-      condition: "GOOD",
+      description,
       status: "ACTIVE",
+      reviewStatus: "APPROVED",
       categoryId: data.categoryId,
       images: serializeImages(data.images),
-      sellerId
+      donorId
     },
     include: {
       category: true,
-      seller: { select: { id: true, email: true, name: true } }
+      donor: { select: { id: true, email: true, name: true } }
     }
   });
 
-  return withParsedImages(item);
+  return toCompatibleDonation(donation);
 };
-

@@ -11,6 +11,7 @@ export const listDonationsController = async (req: Request, res: Response) => {
     q: req.query.q as string | undefined,
     categoryId: req.query.categoryId as string | undefined,
     sellerId: req.query.sellerId as string | undefined,
+    donorId: req.query.donorId as string | undefined,
     page: req.query.page ? Number(req.query.page) : undefined,
     pageSize: req.query.pageSize ? Number(req.query.pageSize) : undefined
   });
@@ -22,4 +23,3 @@ export const getDonationController = async (req: Request, res: Response) => {
   const donation = await getDonationById(String(req.params.id));
   res.json({ data: donation });
 };
-
