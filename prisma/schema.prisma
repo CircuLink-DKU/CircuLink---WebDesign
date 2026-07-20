@@ -154,6 +154,12 @@ model Item {
   categoryId  String
   sellerId    String
   images      String
+  transactionLocation String?
+  contactInfo         String?
+  isNegotiable        Boolean     @default(false)
+  publisherIp         String?
+  reviewedAt          DateTime?
+  reviewedById        String?
   category    Category    @relation(fields: [categoryId], references: [id])
   seller      User        @relation(fields: [sellerId], references: [id])
   reviewedBy  User?       @relation("itemReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
@@ -222,6 +228,8 @@ model Order {
   sellerId  String
   status    String      @default("PENDING")
   total     Float
+  transactionStatus String      @default("NOT_STARTED")
+  completedAt       DateTime?
   item      Item        @relation(fields: [itemId], references: [id])
   buyer     User        @relation("ordersAsBuyer", fields: [buyerId], references: [id])
   seller    User        @relation("ordersAsSeller", fields: [sellerId], references: [id])
