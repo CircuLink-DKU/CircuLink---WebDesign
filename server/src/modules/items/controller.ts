@@ -3,7 +3,7 @@ import { createItem, deleteItem, getItemById, listItems, updateItem } from "./se
 
 export const listItemsController = async (req: Request, res: Response) => {
   type Condition = "NEW" | "LIKE_NEW" | "GOOD" | "FAIR";
-  type ItemStatus = "DRAFT" | "ACTIVE" | "SOLD" | "ARCHIVED";
+  type ItemStatus = "DRAFT" | "PENDING_REVIEW" | "ACTIVE" | "REJECTED" | "SOLD" | "ARCHIVED" | "HIDDEN";
   type SortField = "price" | "createdAt";
   type SortOrder = "asc" | "desc";
 

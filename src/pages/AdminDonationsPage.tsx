@@ -12,6 +12,7 @@ const AdminDonationsPage: React.FC = () => {
   const navigate = useNavigate();
   const { user, loading } = useAuth();
   const { lang } = useLanguage();
+  const canManageDonations = user?.role === 'ADMIN' || user?.role === 'CLUB_OPERATOR';
   const [donations, setDonations] = useState<Item[]>([]);
   const [fetching, setFetching] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -43,12 +44,12 @@ const AdminDonationsPage: React.FC = () => {
   }, [lang]);
 
   useEffect(() => {
-    if (!loading && user?.role === 'ADMIN') {
+    if (!loading && canManageDonations) {
       loadDonations();
     } else if (!loading) {
       setFetching(false);
     }
-  }, [loading, user?.role, loadDonations]);
+  }, [loading, canManageDonations, loadDonations]);
 
   if (loading) {
     return (
@@ -58,16 +59,16 @@ const AdminDonationsPage: React.FC = () => {
     );
   }
 
-  if (!user || user.role !== 'ADMIN') {
+  if (!canManageDonations) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-cyan-50 to-sky-50 flex items-center justify-center px-6">
         <div className="max-w-xl w-full bg-white border border-emerald-200 rounded-2xl p-8 shadow-lg text-center">
           <ShieldAlert className="h-10 w-10 text-amber-500 mx-auto mb-3" />
           <h1 className="text-2xl font-bold text-emerald-900 mb-2">
-            {lang === 'zh' ? '仅管理员可访问' : 'Admin Access Only'}
+            {lang === 'zh' ? '仅 Admin / club-operation 可访问' : 'Admin / club-operation only'}
           </h1>
           <p className="text-emerald-800 mb-6">
-            {lang === 'zh' ? '该页面仅对管理员账号开放。' : 'This page is available only to admin accounts.'}
+            {lang === 'zh' ? '该页面仅对 donation 运营角色开放。' : 'This page is available only to donation operations roles.'}
           </p>
           <button
             onClick={() => navigate('/donation')}

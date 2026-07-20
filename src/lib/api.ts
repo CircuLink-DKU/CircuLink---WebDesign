@@ -307,6 +307,8 @@ class ApiClient {
     q?: string;
     categoryId?: string;
     sellerId?: string;
+    status?: string;
+    reviewStatus?: string;
     page?: number;
     pageSize?: number;
   }) {
@@ -317,6 +319,54 @@ class ApiClient {
       });
     }
     return this.request<{ data: Item[]; meta: PaginationMeta }>(`/donations?${query}`);
+  }
+
+  // Reviews
+  async getReviews(params?: {
+    status?: string;
+    targetType?: string;
+    page?: number;
+    pageSize?: number;
+  }) {
+    const query = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined) query.append(key, String(value));
+      });
+    }
+    return this.request<{ data: ReviewQueueEntry[]; meta: PaginationMeta }>(`/reviews?${query}`);
+  }
+
+  async getReview(id: string) {
+    return this.request<{ data: ReviewQueueEntry }>(`/reviews/${id}`);
+  }
+
+  async approveReview(id: string, data: ReviewDecisionInput = {}) {
+    return this.request<{ data: ReviewQueueEntry }>(`/reviews/${id}/approve`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async rejectReview(id: string, data: ReviewDecisionInput = {}) {
+    return this.request<{ data: ReviewQueueEntry }>(`/reviews/${id}/reject`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async requestReviewChanges(id: string, data: ReviewDecisionInput = {}) {
+    return this.request<{ data: ReviewQueueEntry }>(`/reviews/${id}/request-changes`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async hideReview(id: string, data: ReviewDecisionInput = {}) {
+    return this.request<{ data: ReviewQueueEntry }>(`/reviews/${id}/hide`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
   }
 
   // AI
@@ -388,6 +438,9 @@ export interface Item {
   images: string[];
   category: Category;
   seller: { id: string; email: string; name: string | null };
+  reviewStatus?: string;
+  donor?: { id: string; email: string; name: string | null };
+  donorId?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -454,6 +507,50 @@ export interface PaginationMeta {
   page: number;
   pageSize: number;
   total: number;
+}
+
+export interface ReviewUserSummary {
+  id: string;
+  email: string;
+  name: string | null;
+  role: string;
+}
+
+export interface ReviewDecisionRecord {
+  id: string;
+  reviewId: string;
+  reviewerId: string;
+  decision: "APPROVE" | "REJECT" | "REQUEST_CHANGES" | "HIDE" | string;
+  reasonCode?: string | null;
+  comment?: string | null;
+  createdAt: string;
+  reviewer?: ReviewUserSummary;
+}
+
+export interface ReviewQueueEntry {
+  id: string;
+  targetType: "ITEM" | "DONATION" | string;
+  targetId: string;
+  submissionType: "NEW_LISTING" | "NEW_DONATION" | string;
+  submittedById: string;
+  status: "PENDING" | "APPROVED" | "REJECTED" | "NEEDS_CHANGES" | "HIDDEN" | string;
+  riskLevel: "LOW" | "MEDIUM" | "HIGH" | string;
+  flags: string[];
+  summary?: string | null;
+  assignedReviewerId?: string | null;
+  reviewedById?: string | null;
+  reviewedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  submittedBy?: ReviewUserSummary;
+  assignedReviewer?: ReviewUserSummary | null;
+  reviewedBy?: ReviewUserSummary | null;
+  decisions?: ReviewDecisionRecord[];
+}
+
+export interface ReviewDecisionInput {
+  reasonCode?: string;
+  comment?: string;
 }
 
 export interface AiItemSuggestInput {

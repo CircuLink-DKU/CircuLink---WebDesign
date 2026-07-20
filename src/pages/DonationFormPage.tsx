@@ -128,14 +128,14 @@ const DonationFormPage: React.FC = () => {
       const imageUrls = await uploadImages();
       setUploading(false);
 
-      await apiClient.createDonation({
+      const response = await apiClient.createDonation({
         description,
         categoryId: donationCategoryId,
         images: imageUrls
       });
 
       // Navigate to thank you page
-      navigate('/donation/thanks');
+      navigate('/donation/thanks', { state: { reviewStatus: response.data.reviewStatus } });
     } catch (err) {
       setError(err instanceof Error ? err.message : (lang === 'zh' ? '提交捐赠失败' : 'Failed to submit donation'));
     } finally {

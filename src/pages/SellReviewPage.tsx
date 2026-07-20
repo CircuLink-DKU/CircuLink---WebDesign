@@ -76,7 +76,17 @@ const SellReviewPage: React.FC = () => {
         categoryId: itemData.categoryId,
         images: itemData.images
       });
-      navigate(`/product/${response.data.id}`);
+      if (response.data.status === 'PENDING_REVIEW') {
+        navigate('/profile', {
+          state: {
+            notice: lang === 'zh'
+              ? '你的商品已提交审核，审核通过前不会公开显示。'
+              : 'Your item is pending review and will not be public until approved.'
+          }
+        });
+      } else {
+        navigate(`/product/${response.data.id}`);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : (lang === 'zh' ? '发布商品失败' : 'Failed to publish item'));
     } finally {

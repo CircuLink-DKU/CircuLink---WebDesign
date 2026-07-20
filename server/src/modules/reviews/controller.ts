@@ -25,3 +25,13 @@ export const rejectReviewController = async (req: Request, res: Response) => {
   const review = await decideReview(req.user!, String(req.params.id), "REJECT", req.body);
   res.json({ data: review });
 };
+
+export const requestChangesReviewController = async (req: Request, res: Response) => {
+  const review = await decideReview(req.user!, String(req.params.id), "REQUEST_CHANGES", req.body);
+  res.json({ data: review });
+};
+
+export const hideReviewController = async (req: Request, res: Response) => {
+  const review = await decideReview(req.user!, String(req.params.id), "HIDE", req.body);
+  res.json({ data: review });
+};

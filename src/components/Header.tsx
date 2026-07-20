@@ -42,9 +42,11 @@ const Header: React.FC<HeaderProps> = ({ onSearch, onNewItem, onShowFavorites })
     sellNow: lang === 'zh' ? '立即出售' : 'Sell Now',
     donation: lang === 'zh' ? '捐赠' : 'Donation',
     donationAdmin: lang === 'zh' ? '捐赠管理' : 'Donation Admin',
+    reviewQueue: lang === 'zh' ? '审核队列' : 'Review Queue',
     profile: lang === 'zh' ? '个人资料' : 'Profile',
     about: lang === 'zh' ? '关于' : 'About'
   };
+  const canReview = user?.role === 'ADMIN' || user?.role === 'CLUB_OPERATOR';
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -243,6 +245,11 @@ const Header: React.FC<HeaderProps> = ({ onSearch, onNewItem, onShowFavorites })
             <button onClick={() => navigate('/about')} className="hover:text-white">
               {text.about}
             </button>
+            {canReview && (
+              <button onClick={() => navigate('/admin/reviews')} className="hover:text-white">
+                {text.reviewQueue}
+              </button>
+            )}
             <button
               onClick={onShowFavorites}
               className="p-1.5 text-[#e6f1e2] hover:text-white"
@@ -389,8 +396,8 @@ const Header: React.FC<HeaderProps> = ({ onSearch, onNewItem, onShowFavorites })
               {text.sellNow}
             </button>
             <div className="w-px bg-[#b4d3b1]" />
-            <button onClick={() => navigate(user?.role === 'ADMIN' ? '/admin/donations' : '/donation')} className="flex-1 text-center py-3 text-[#2f4b32] hover:bg-[#c6e1c1] transition-colors font-medium text-sm sm:text-base shadow-inner">
-              {user?.role === 'ADMIN' ? text.donationAdmin : text.donation}
+            <button onClick={() => navigate(canReview ? '/admin/donations' : '/donation')} className="flex-1 text-center py-3 text-[#2f4b32] hover:bg-[#c6e1c1] transition-colors font-medium text-sm sm:text-base shadow-inner">
+              {canReview ? text.donationAdmin : text.donation}
             </button>
           </div>
         </div>

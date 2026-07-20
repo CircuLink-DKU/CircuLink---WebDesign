@@ -5,9 +5,9 @@ import { normalizePagination } from "../../utils/pagination.js";
 import { hasRole, AuthUser } from "../../middleware/auth.js";
 import { CreateReviewInput } from "./rules.js";
 
-type ReviewStatus = "PENDING" | "APPROVED" | "REJECTED";
+type ReviewStatus = "PENDING" | "APPROVED" | "REJECTED" | "NEEDS_CHANGES" | "HIDDEN";
 type ReviewTargetType = "ITEM" | "DONATION";
-type ReviewDecision = "APPROVE" | "REJECT";
+type ReviewDecision = "APPROVE" | "REJECT" | "REQUEST_CHANGES" | "HIDE";
 
 export const createReviewQueueEntry = async (input: CreateReviewInput) => {
   return prisma.reviewQueue.create({
@@ -106,8 +106,20 @@ export const decideReview = async (
   assertCanReviewTarget(user, review.targetType);
   if (review.status !== "PENDING") throw new ForbiddenError("Review has already been decided");
 
-  const nextReviewStatus = decision === "APPROVE" ? "APPROVED" : "REJECTED";
-  const nextTargetStatus = decision === "APPROVE" ? "ACTIVE" : "REJECTED";
+  const nextReviewStatus =
+    decision === "APPROVE"
+      ? "APPROVED"
+      : decision === "REQUEST_CHANGES"
+        ? "NEEDS_CHANGES"
+        : decision === "HIDE"
+          ? "HIDDEN"
+          : "REJECTED";
+  const nextTargetStatus =
+    decision === "APPROVE"
+      ? "ACTIVE"
+      : decision === "HIDE"
+        ? "HIDDEN"
+        : "REJECTED";
 
   return prisma.$transaction(async (tx) => {
     if (review.targetType === "ITEM") {
