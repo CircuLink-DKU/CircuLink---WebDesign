@@ -18,6 +18,9 @@ datasource db {
 // ReviewStatus: APPROVED, PENDING_REVIEW, REJECTED
 // ReviewQueueStatus: PENDING, APPROVED, REJECTED
 // OrderStatus: PENDING, ACCEPTED, REJECTED, PAID, SHIPPED, COMPLETED, CANCELLED
+// TransactionStatus: NOT_STARTED, IN_PROGRESS, COMPLETED, CANCELLED, DISPUTED
+// CartStatus: ACTIVE, CONVERTED, ABANDONED
+// TransactionReviewStatus: PUBLISHED, HIDDEN, REMOVED
 
 model User {
   id            String          @id @default(cuid())
@@ -33,12 +36,16 @@ model User {
   assignedReviews  ReviewQueue[] @relation("assignedReviews")
   reviewedReviews  ReviewQueue[] @relation("reviewedReviews")
   reviewDecisions  ReviewDecision[] @relation("reviewDecisions")
+  reviewedItems          Item[]                 @relation("itemReviewedBy")
   favorites     Favorite[]
   messages      Message[]
   threadsAsBuyer  MessageThread[] @relation("buyerThreads")
   threadsAsSeller MessageThread[] @relation("sellerThreads")
   ordersAsBuyer   Order[]         @relation("ordersAsBuyer")
   ordersAsSeller  Order[]         @relation("ordersAsSeller")
+  cart                   Cart?
+  transactionReviewsMade TransactionReview[]    @relation("transactionReviewAuthor")
+  transactionReviewsGot  TransactionReview[]    @relation("transactionReviewSubject")
   refreshTokens RefreshToken[]
   emailVerifications EmailVerificationToken[]
   passwordResets     PasswordResetToken[]
@@ -149,9 +156,11 @@ model Item {
   images      String
   category    Category    @relation(fields: [categoryId], references: [id])
   seller      User        @relation(fields: [sellerId], references: [id])
+  reviewedBy  User?       @relation("itemReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
   favorites   Favorite[]
   threads     MessageThread[]
   orders      Order[]
+  cartEntries CartItem[]
   views       ItemView[]
   stats       ItemStats?
   createdAt   DateTime    @default(now())
@@ -161,6 +170,8 @@ model Item {
   @@index([status])
   @@index([condition])
   @@index([price])
+  @@index([reviewedById])
+  @@index([reviewedAt])
   @@index([createdAt])
   @@index([categoryId, status, createdAt])
 }
@@ -214,12 +225,72 @@ model Order {
   item      Item        @relation(fields: [itemId], references: [id])
   buyer     User        @relation("ordersAsBuyer", fields: [buyerId], references: [id])
   seller    User        @relation("ordersAsSeller", fields: [sellerId], references: [id])
+  reviews     TransactionReview[]
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
 
   @@index([buyerId])
   @@index([sellerId])
   @@index([status])
+  @@index([transactionStatus])
+  @@index([completedAt])
+}
+
+/// Stores one persistent shopping cart per user.
+/// A cart can remain after checkout so its lifecycle can be audited through the status field.
+model Cart {
+  id        String     @id @default(cuid())
+  userId    String     @unique
+  status    String     @default("ACTIVE")
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items     CartItem[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  @@index([status])
+  @@index([updatedAt])
+}
+
+/// Connects a cart to a second-hand listing.
+/// A listing may appear only once in the same cart because each marketplace item is treated as unique inventory.
+model CartItem {
+  id        String   @id @default(cuid())
+  cartId    String
+  itemId    String
+  cart      Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  item      Item     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([cartId, itemId])
+  @@index([itemId])
+  @@index([createdAt])
+}
+
+
+/// Buyer-to-seller or seller-to-buyer evaluation attached to a completed order.
+/// The database permits one review per author per order, enabling mutual reviews while preventing duplicates.
+model TransactionReview {
+  id        String   @id @default(cuid())
+  orderId   String
+  authorId  String
+  subjectId String
+
+  /// Integer rating from 1 to 5. The migration adds a database CHECK constraint in addition to app validation.
+  rating    Int
+
+  comment   String?
+  status    String   @default("PUBLISHED")
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  author    User     @relation("transactionReviewAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+  subject   User     @relation("transactionReviewSubject", fields: [subjectId], references: [id], onDelete: Restrict)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([orderId, authorId])
+  @@index([authorId])
+  @@index([subjectId])
+  @@index([status])
+  @@index([createdAt])
 }
 
 model RefreshToken {
