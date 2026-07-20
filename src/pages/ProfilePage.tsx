@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
 import { useAuth } from '../hooks/useAuth';
 import {
@@ -75,6 +75,53 @@ const getStatusBadgeClass = (status?: string) => {
   }
 };
 
+const getStatusLabel = (status: string | undefined, lang: string) => {
+  if (lang !== 'zh') return status || 'UNKNOWN';
+  switch (status) {
+    case 'ACTIVE':
+      return '已发布';
+    case 'PENDING_REVIEW':
+      return '审核中';
+    case 'REJECTED':
+      return '未通过';
+    case 'SOLD':
+      return '已售出';
+    case 'ARCHIVED':
+      return '已归档';
+    case 'HIDDEN':
+      return '已隐藏';
+    case 'DRAFT':
+      return '草稿';
+    default:
+      return status || '未知';
+  }
+};
+
+const getStatusHint = (status: string | undefined, lang: string) => {
+  if (lang !== 'zh') {
+    switch (status) {
+      case 'PENDING_REVIEW':
+        return 'This item is waiting for review and is not public yet.';
+      case 'REJECTED':
+        return 'This item was rejected. Archive it or submit a new listing.';
+      case 'ACTIVE':
+        return 'Approved content cannot be edited directly. Mark it sold/archive or submit a new listing.';
+      default:
+        return '';
+    }
+  }
+  switch (status) {
+    case 'PENDING_REVIEW':
+      return '该商品正在审核中，暂不会公开显示。';
+    case 'REJECTED':
+      return '该商品未通过审核，请归档或重新发布新的 listing。';
+    case 'ACTIVE':
+      return '已审核通过的核心内容不能直接修改；可以标记售出、归档，或重新发布。';
+    default:
+      return '';
+  }
+};
+
 const ProfileField: React.FC<ProfileFieldProps> = ({
   icon: Icon,
   label,
@@ -115,6 +162,7 @@ const ProfileField: React.FC<ProfileFieldProps> = ({
 
 const ProfilePage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { t, lang } = useLanguage();
   const { profile, isAuthenticated, refreshProfile } = useAuth();
   const [activeTab, setActiveTab] = useState<'info' | 'items' | 'favorites'>('info');
@@ -130,6 +178,7 @@ const ProfilePage: React.FC = () => {
   const [myFavorites, setMyFavorites] = useState<Favorite[]>([]);
   const [itemsLoading, setItemsLoading] = useState(false);
   const [favoritesLoading, setFavoritesLoading] = useState(false);
+  const notice = (location.state as { notice?: string } | null)?.notice;
 
   useEffect(() => {
     if (profile) {
@@ -145,12 +194,22 @@ const ProfilePage: React.FC = () => {
     if (!profile) return;
     setItemsLoading(true);
     try {
-      const response = await apiClient.getItems({
-        sellerId: profile.id,
-        page: 1,
-        pageSize: 100,
-      });
-      setMyItems(response.data || []);
+      const statuses = ['ACTIVE', 'PENDING_REVIEW', 'REJECTED', 'SOLD', 'ARCHIVED'];
+      const responses = await Promise.all(
+        statuses.map((status) =>
+          apiClient.getItems({
+            sellerId: profile.id,
+            status,
+            page: 1,
+            pageSize: 100,
+          })
+        )
+      );
+      const merged = responses
+        .flatMap((response) => response.data || [])
+        .filter((item, index, items) => items.findIndex((candidate) => candidate.id === item.id) === index)
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      setMyItems(merged);
     } catch (err) {
       console.error('Failed to load items:', err);
     } finally {
@@ -281,6 +340,12 @@ const ProfilePage: React.FC = () => {
           <ArrowLeft className="h-4 w-4" />
           {t('back')}
         </button>
+
+        {notice ? (
+          <div className="rounded-[1.4rem] border border-[#d4c58f] bg-[#fff4cf]/90 px-4 py-3 text-[#87671d] shadow-sm">
+            {notice}
+          </div>
+        ) : null}
 
         <div className="rounded-[2rem] border p-6 sm:p-8" style={glassCardStyle}>
           <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
@@ -469,15 +534,17 @@ const ProfilePage: React.FC = () => {
                         style={glassSoftStyle}
                         onClick={() => navigate(`/product/${item.id}`)}
                       >
-                        <button
-                          onClick={(event) => {
-                            event.stopPropagation();
-                            navigate('/sell', { state: { editItemId: item.id } });
-                          }}
-                          className="absolute right-3 top-3 z-10 rounded-full border border-white/60 bg-white/82 px-3 py-1 text-xs font-semibold text-[#28513b] shadow-sm transition-colors hover:bg-white"
-                        >
-                          {t('edit')}
-                        </button>
+                        {item.status !== 'ACTIVE' && item.status !== 'HIDDEN' ? (
+                          <button
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              navigate('/sell', { state: { editItemId: item.id } });
+                            }}
+                            className="absolute right-3 top-3 z-10 rounded-full border border-white/60 bg-white/82 px-3 py-1 text-xs font-semibold text-[#28513b] shadow-sm transition-colors hover:bg-white"
+                          >
+                            {t('edit')}
+                          </button>
+                        ) : null}
                         <img
                           src={item.images?.[0] || 'https://via.placeholder.com/300x200?text=No+Image'}
                           alt={item.title}
@@ -488,9 +555,14 @@ const ProfilePage: React.FC = () => {
                           <div className="flex items-center justify-between gap-3">
                             <p className="text-lg font-bold text-orange-600">${item.price}</p>
                             <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${getStatusBadgeClass(item.status)}`}>
-                              {item.status}
+                              {getStatusLabel(item.status, lang)}
                             </span>
                           </div>
+                          {getStatusHint(item.status, lang) ? (
+                            <p className="mt-3 rounded-xl border border-white/45 bg-white/42 px-3 py-2 text-xs text-[#476656]">
+                              {getStatusHint(item.status, lang)}
+                            </p>
+                          ) : null}
                         </div>
                       </div>
                     ))}

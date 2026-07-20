@@ -150,6 +150,25 @@ export const updateItem = async (id: string, userId: string, data: Partial<Creat
   if (!item) throw new NotFoundError("Item not found");
   if (item.sellerId !== userId) throw new ForbiddenError("Only the seller can update this item");
 
+  const coreFields = ["title", "description", "price", "condition", "categoryId", "images"] as const;
+  const hasCoreFieldUpdate = coreFields.some((field) => data[field] !== undefined);
+  if (item.status === "ACTIVE" && hasCoreFieldUpdate) {
+    throw new ForbiddenError("Approved listings cannot be edited. Archive it or submit a new listing.");
+  }
+
+  const allowedStatusChanges: Record<string, ItemStatus[]> = {
+    ACTIVE: ["SOLD", "ARCHIVED"],
+    PENDING_REVIEW: ["ARCHIVED"],
+    REJECTED: ["ARCHIVED"],
+    SOLD: ["ARCHIVED"],
+    DRAFT: ["ACTIVE", "ARCHIVED"],
+    ARCHIVED: [],
+    HIDDEN: []
+  };
+  if (data.status && data.status !== item.status && !allowedStatusChanges[item.status]?.includes(data.status)) {
+    throw new ForbiddenError("This listing status change is not allowed");
+  }
+
   const updateData: Prisma.ItemUpdateInput = {
     ...(data.title && { title: data.title }),
     ...(data.description && { description: data.description }),

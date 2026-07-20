@@ -1,11 +1,13 @@
 import { Router } from "express";
 import { asyncHandler } from "../../utils/async-handler.js";
-import { requireAdminOrClubOperator, requireAuth } from "../../middleware/auth.js";
+import { requireAdmin, requireAdminOrClubOperator, requireAuth } from "../../middleware/auth.js";
 import { validate } from "../../middleware/validate.js";
 import {
   approveReviewController,
   getReviewController,
+  hideReviewController,
   listReviewsController,
+  requestChangesReviewController,
   rejectReviewController
 } from "./controller.js";
 import { decideReviewSchema, getReviewSchema, listReviewsSchema } from "./schema.js";
@@ -27,6 +29,20 @@ router.post(
   requireAdminOrClubOperator,
   validate(decideReviewSchema),
   asyncHandler(rejectReviewController)
+);
+router.post(
+  "/:id/request-changes",
+  requireAuth,
+  requireAdminOrClubOperator,
+  validate(decideReviewSchema),
+  asyncHandler(requestChangesReviewController)
+);
+router.post(
+  "/:id/hide",
+  requireAuth,
+  requireAdmin,
+  validate(decideReviewSchema),
+  asyncHandler(hideReviewController)
 );
 
 export default router;
