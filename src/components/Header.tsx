@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Plus, MessageCircle, Menu, X, LogOut, Sparkles, Star, ChevronDown, ShoppingCart, Package, Heart } from 'lucide-react';
+import { Search, Plus, MessageCircle, Menu, X, LogOut, Sparkles, Star, ChevronDown, ShoppingCart, Package, Heart, ShieldAlert } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 import { useAuth } from '../hooks/useAuth';
 import { signOut } from '../lib/backend';
@@ -47,9 +47,13 @@ const Header: React.FC<HeaderProps> = ({ onSearch, onNewItem, onShowFavorites })
     about: lang === 'zh' ? '关于' : 'About'
   };
   const canReview = user?.role === 'ADMIN' || user?.role === 'CLUB_OPERATOR';
+  const isRestrictedPartnerRole = user?.role === 'BUY42_PARTNER';
+  const canUseMarketplace = !isRestrictedPartnerRole;
+  const canManageDonations = user?.role === 'ADMIN' || user?.role === 'CLUB_OPERATOR';
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!canUseMarketplace) return;
     if (searchQuery.trim()) {
       onSearch(searchQuery);
       navigate(`/products?q=${encodeURIComponent(searchQuery)}`);
@@ -74,10 +78,17 @@ const Header: React.FC<HeaderProps> = ({ onSearch, onNewItem, onShowFavorites })
         <div className="flex justify-between items-center h-12">
           {/* Logo */}
           <div className="flex items-center space-x-3">
-            <h1 className="text-sm font-bold tracking-[0.35em] text-[#f2f8ee]">CIRCULINK</h1>
+            <button
+              type="button"
+              onClick={() => navigate('/')}
+              className="text-sm font-bold tracking-[0.35em] text-[#f2f8ee] hover:text-white"
+            >
+              CIRCULINK
+            </button>
           </div>
 
           {/* Search Bar - Desktop (center) */}
+          {canUseMarketplace ? (
           <form onSubmit={handleSearch} className="hidden md:flex flex-1 items-center mx-6">
             <button
               type="button"
@@ -203,6 +214,9 @@ const Header: React.FC<HeaderProps> = ({ onSearch, onNewItem, onShowFavorites })
               </button>
             </div>
           </form>
+          ) : (
+            <div className="hidden md:block flex-1" />
+          )}
 
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center space-x-5 text-xs text-[#e6f1e2]">
@@ -250,36 +264,40 @@ const Header: React.FC<HeaderProps> = ({ onSearch, onNewItem, onShowFavorites })
                 {text.reviewQueue}
               </button>
             )}
-            <button
-              onClick={onShowFavorites}
-              className="p-1.5 text-[#e6f1e2] hover:text-white"
-              aria-label={t('favorites')}
-            >
-              <Star className="h-4 w-4" fill="currentColor" />
-            </button>
-            <button
-              onClick={() => navigate('/cart')}
-              className="p-1.5 text-[#e6f1e2] hover:text-white relative"
-              aria-label={t('cart')}
-            >
-              <ShoppingCart className="h-4 w-4" fill="currentColor" />
-              <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-[#f0d27a]" />
-            </button>
-            <button
-              onClick={() => navigate('/orders')}
-              className="p-1.5 text-[#e6f1e2] hover:text-white"
-              aria-label={text.orders}
-            >
-              <Package className="h-4 w-4" />
-            </button>
-            <button
-              onClick={() => navigate('/messages')}
-              className="p-1.5 text-[#e6f1e2] hover:text-white relative"
-              aria-label={t('messages')}
-            >
-              <MessageCircle className="h-4 w-4" fill="currentColor" />
-              <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-[#f27b7b]" />
-            </button>
+            {canUseMarketplace && (
+              <>
+                <button
+                  onClick={onShowFavorites}
+                  className="p-1.5 text-[#e6f1e2] hover:text-white"
+                  aria-label={t('favorites')}
+                >
+                  <Star className="h-4 w-4" fill="currentColor" />
+                </button>
+                <button
+                  onClick={() => navigate('/cart')}
+                  className="p-1.5 text-[#e6f1e2] hover:text-white relative"
+                  aria-label={t('cart')}
+                >
+                  <ShoppingCart className="h-4 w-4" fill="currentColor" />
+                  <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-[#f0d27a]" />
+                </button>
+                <button
+                  onClick={() => navigate('/orders')}
+                  className="p-1.5 text-[#e6f1e2] hover:text-white"
+                  aria-label={text.orders}
+                >
+                  <Package className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => navigate('/messages')}
+                  className="p-1.5 text-[#e6f1e2] hover:text-white relative"
+                  aria-label={t('messages')}
+                >
+                  <MessageCircle className="h-4 w-4" fill="currentColor" />
+                  <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-[#f27b7b]" />
+                </button>
+              </>
+            )}
             {!isAuthenticated && (
               <>
                 <button
@@ -296,6 +314,15 @@ const Header: React.FC<HeaderProps> = ({ onSearch, onNewItem, onShowFavorites })
                 </button>
               </>
             )}
+            {isAuthenticated && (
+              <button
+                onClick={handleSignOut}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[#e6f1e2] hover:text-white border border-[#e6f1e2]/70 rounded-md hover:bg-[#4d6f50] transition-colors"
+              >
+                <LogOut className="h-3.5 w-3.5" />
+                {t('signOut')}
+              </button>
+            )}
           </div>
 
           {/* Mobile Menu Button */}
@@ -308,6 +335,7 @@ const Header: React.FC<HeaderProps> = ({ onSearch, onNewItem, onShowFavorites })
         </div>
 
         {/* Mobile Search */}
+        {canUseMarketplace && (
         <div className="md:hidden pb-4">
           <form onSubmit={handleSearch}>
             <div className="relative">
@@ -322,6 +350,7 @@ const Header: React.FC<HeaderProps> = ({ onSearch, onNewItem, onShowFavorites })
             </div>
           </form>
         </div>
+        )}
 
         {/* Mobile Menu */}
         {mobileMenuOpen && (
@@ -329,31 +358,47 @@ const Header: React.FC<HeaderProps> = ({ onSearch, onNewItem, onShowFavorites })
             <div className="flex flex-col space-y-4">
               {isAuthenticated ? (
                 <>
-                  <button
-                    onClick={onNewItem}
-                    className="bg-[#6ea16f] text-white px-4 py-2 rounded-lg flex items-center justify-center space-x-2"
-                  >
-                    <Plus className="h-4 w-4" />
-                    <span>{t('sellItem')}</span>
-                  </button>
-                  <button 
-                    onClick={onShowFavorites}
-                    className="flex items-center justify-center space-x-2 text-[#e6f1e2]"
-                  >
-                    <Heart className="h-5 w-5" />
-                    <span>{t('favorites')}</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      navigate('/messages');
-                      setMobileMenuOpen(false);
-                    }}
-                    className="flex items-center justify-center space-x-2 text-[#e6f1e2]"
-                  >
-                    <MessageCircle className="h-5 w-5" />
-                    <span>{t('messages')}</span>
-                    <span className="bg-red-500 text-white text-xs rounded-full px-2 py-1">3</span>
-                  </button>
+                  {canUseMarketplace && (
+                    <>
+                      <button
+                        onClick={onNewItem}
+                        className="bg-[#6ea16f] text-white px-4 py-2 rounded-lg flex items-center justify-center space-x-2"
+                      >
+                        <Plus className="h-4 w-4" />
+                        <span>{t('sellItem')}</span>
+                      </button>
+                      <button
+                        onClick={onShowFavorites}
+                        className="flex items-center justify-center space-x-2 text-[#e6f1e2]"
+                      >
+                        <Heart className="h-5 w-5" />
+                        <span>{t('favorites')}</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          navigate('/messages');
+                          setMobileMenuOpen(false);
+                        }}
+                        className="flex items-center justify-center space-x-2 text-[#e6f1e2]"
+                      >
+                        <MessageCircle className="h-5 w-5" />
+                        <span>{t('messages')}</span>
+                        <span className="bg-red-500 text-white text-xs rounded-full px-2 py-1">3</span>
+                      </button>
+                    </>
+                  )}
+                  {canReview && (
+                    <button
+                      onClick={() => {
+                        navigate('/admin/reviews');
+                        setMobileMenuOpen(false);
+                      }}
+                      className="flex items-center justify-center space-x-2 text-[#e6f1e2]"
+                    >
+                      <ShieldAlert className="h-5 w-5" />
+                      <span>{text.reviewQueue}</span>
+                    </button>
+                  )}
                   <button
                     onClick={handleSignOut}
                     className="flex items-center justify-center space-x-2 text-[#e6f1e2]"
@@ -388,16 +433,20 @@ const Header: React.FC<HeaderProps> = ({ onSearch, onNewItem, onShowFavorites })
       <div className="bg-[#d7ecd0] border-t border-b border-[#b4d3b1]">
         <div className="w-full">
           <div className="flex items-stretch">
-            <button onClick={() => navigate('/buy')} className="flex-1 text-center py-3 text-[#2f4b32] hover:bg-[#c6e1c1] transition-colors font-medium text-sm sm:text-base shadow-inner">
-              {text.startBuying}
-            </button>
-            <div className="w-px bg-[#b4d3b1]" />
-            <button onClick={() => navigate('/sell')} className="flex-1 text-center py-3 text-[#2f4b32] hover:bg-[#c6e1c1] transition-colors font-medium text-sm sm:text-base shadow-inner">
-              {text.sellNow}
-            </button>
-            <div className="w-px bg-[#b4d3b1]" />
-            <button onClick={() => navigate(canReview ? '/admin/donations' : '/donation')} className="flex-1 text-center py-3 text-[#2f4b32] hover:bg-[#c6e1c1] transition-colors font-medium text-sm sm:text-base shadow-inner">
-              {canReview ? text.donationAdmin : text.donation}
+            {canUseMarketplace && (
+              <>
+                <button onClick={() => navigate('/buy')} className="flex-1 text-center py-3 text-[#2f4b32] hover:bg-[#c6e1c1] transition-colors font-medium text-sm sm:text-base shadow-inner">
+                  {text.startBuying}
+                </button>
+                <div className="w-px bg-[#b4d3b1]" />
+                <button onClick={() => navigate('/sell')} className="flex-1 text-center py-3 text-[#2f4b32] hover:bg-[#c6e1c1] transition-colors font-medium text-sm sm:text-base shadow-inner">
+                  {text.sellNow}
+                </button>
+                <div className="w-px bg-[#b4d3b1]" />
+              </>
+            )}
+            <button onClick={() => navigate(canManageDonations ? '/admin/donations' : '/donation')} className="flex-1 text-center py-3 text-[#2f4b32] hover:bg-[#c6e1c1] transition-colors font-medium text-sm sm:text-base shadow-inner">
+              {canManageDonations ? text.donationAdmin : text.donation}
             </button>
           </div>
         </div>

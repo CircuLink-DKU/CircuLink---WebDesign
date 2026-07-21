@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Navigate, Routes, Route } from 'react-router-dom';
 import Header from './components/Header';
 import { LanguageProvider } from './context/LanguageContext';
+import { useAuth } from './hooks/useAuth';
 import HomePage from './pages/HomePage';
 import ProductsPage from './pages/ProductsPage';
 import ProductDetailPage from './pages/ProductDetailPage';
@@ -23,6 +24,31 @@ import OrdersPage from './pages/OrdersPage';
 import OrderDetailPage from './pages/OrderDetailPage';
 import NewItemModal from './components/NewItemModal';
 import FavoritesModal from './components/FavoritesModal';
+
+const isRestrictedPartnerRole = (role?: string) => role === 'BUY42_PARTNER';
+
+const restrictedPartnerHome = (role?: string) => {
+  if (role === 'BUY42_PARTNER') return '/profile';
+  return '/';
+};
+
+const RoleLandingRoute: React.FC<{ children: React.ReactElement }> = ({ children }) => {
+  const { user, loading } = useAuth();
+  if (loading) return null;
+  if (isRestrictedPartnerRole(user?.role)) {
+    return <Navigate to={restrictedPartnerHome(user?.role)} replace />;
+  }
+  return children;
+};
+
+const MarketplaceRoute: React.FC<{ children: React.ReactElement }> = ({ children }) => {
+  const { user, loading } = useAuth();
+  if (loading) return null;
+  if (isRestrictedPartnerRole(user?.role)) {
+    return <Navigate to={restrictedPartnerHome(user?.role)} replace />;
+  }
+  return children;
+};
 
 function App() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -51,25 +77,25 @@ function App() {
         />
 
         <Routes>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/products" element={<ProductsPage searchQuery={searchQuery} />} />
-          <Route path="/product/:id" element={<ProductDetailPage />} />
+          <Route path="/" element={<RoleLandingRoute><HomePage /></RoleLandingRoute>} />
+          <Route path="/products" element={<MarketplaceRoute><ProductsPage searchQuery={searchQuery} /></MarketplaceRoute>} />
+          <Route path="/product/:id" element={<MarketplaceRoute><ProductDetailPage /></MarketplaceRoute>} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/about" element={<AboutPage />} />
-          <Route path="/cart" element={<CartPage />} />
-          <Route path="/category/:categoryName" element={<CategoryPage />} />
-          <Route path="/sell" element={<SellPage />} />
-          <Route path="/sell/review" element={<SellReviewPage />} />
-          <Route path="/buy" element={<BuyPage />} />
+          <Route path="/cart" element={<MarketplaceRoute><CartPage /></MarketplaceRoute>} />
+          <Route path="/category/:categoryName" element={<MarketplaceRoute><CategoryPage /></MarketplaceRoute>} />
+          <Route path="/sell" element={<MarketplaceRoute><SellPage /></MarketplaceRoute>} />
+          <Route path="/sell/review" element={<MarketplaceRoute><SellReviewPage /></MarketplaceRoute>} />
+          <Route path="/buy" element={<MarketplaceRoute><BuyPage /></MarketplaceRoute>} />
           <Route path="/donation" element={<DonationPage />} />
           <Route path="/donation/form" element={<DonationFormPage />} />
           <Route path="/donation/thanks" element={<DonationThanksPage />} />
           <Route path="/admin/donations" element={<AdminDonationsPage />} />
           <Route path="/admin/reviews" element={<AdminReviewsPage />} />
-          <Route path="/messages" element={<MessagesPage />} />
-          <Route path="/ai-recommendation" element={<AIRecommendationPage />} />
-          <Route path="/orders" element={<OrdersPage />} />
-          <Route path="/orders/:id" element={<OrderDetailPage />} />
+          <Route path="/messages" element={<MarketplaceRoute><MessagesPage /></MarketplaceRoute>} />
+          <Route path="/ai-recommendation" element={<MarketplaceRoute><AIRecommendationPage /></MarketplaceRoute>} />
+          <Route path="/orders" element={<MarketplaceRoute><OrdersPage /></MarketplaceRoute>} />
+          <Route path="/orders/:id" element={<MarketplaceRoute><OrderDetailPage /></MarketplaceRoute>} />
         </Routes>
 
         <NewItemModal

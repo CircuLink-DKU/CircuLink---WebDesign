@@ -8,14 +8,17 @@ import {
   Loader,
   RefreshCcw,
   ShieldAlert,
+  UserCog,
+  Users,
   XCircle,
 } from 'lucide-react';
-import { apiClient, ReviewQueueEntry } from '../lib/api';
+import { AdminUser, apiClient, ReviewQueueEntry, UserRole } from '../lib/api';
 import { useAuth } from '../hooks/useAuth';
 import { useLanguage } from '../context/LanguageContext';
 
 const statusOptions = ['PENDING', 'APPROVED', 'REJECTED', 'NEEDS_CHANGES', 'HIDDEN'];
 const targetTypeOptions = ['ITEM', 'DONATION'];
+const roleOptions: UserRole[] = ['USER', 'CLUB_OPERATOR', 'BUY42_PARTNER', 'ADMIN'];
 const reasonCodeOptions = [
   'missing_images',
   'external_payment',
@@ -82,6 +85,16 @@ const labels = {
     reasonPlaceholder: '选择原因码',
     commentPlaceholder: '写给运营记录的简短说明',
     decisionRequired: '拒绝、要求修改或隐藏时请选择原因码',
+    rolePanelTitle: '权限管理',
+    rolePanelSubtitle: '仅 Admin 可手动调整现有用户的身份权限。',
+    userSearchPlaceholder: '搜索邮箱或姓名',
+    allRoles: '全部角色',
+    loadUsers: '加载用户',
+    noUsers: '暂无用户',
+    saveRole: '保存角色',
+    savingRole: '保存中...',
+    roleUpdated: '权限已更新；该用户重新登录后会完全生效。',
+    selfRoleLocked: '不能在这里修改自己的角色',
   },
   en: {
     title: 'Review Queue',
@@ -110,6 +123,16 @@ const labels = {
     reasonPlaceholder: 'Select a reason code',
     commentPlaceholder: 'Short note for the operations record',
     decisionRequired: 'Reason code is required when rejecting, requesting changes, or hiding',
+    rolePanelTitle: 'User roles',
+    rolePanelSubtitle: 'Admin-only controls for assigning roles to existing users.',
+    userSearchPlaceholder: 'Search email or name',
+    allRoles: 'All roles',
+    loadUsers: 'Load users',
+    noUsers: 'No users',
+    saveRole: 'Save role',
+    savingRole: 'Saving...',
+    roleUpdated: 'Role updated; the user should sign in again for it to fully apply.',
+    selfRoleLocked: 'You cannot change your own role here',
   },
 };
 
@@ -119,6 +142,7 @@ const AdminReviewsPage: React.FC = () => {
   const { lang } = useLanguage();
   const text = labels[lang === 'zh' ? 'zh' : 'en'];
   const canReview = user?.role === 'ADMIN' || user?.role === 'CLUB_OPERATOR';
+  const isAdmin = user?.role === 'ADMIN';
   const [reviews, setReviews] = useState<ReviewQueueEntry[]>([]);
   const [status, setStatus] = useState('PENDING');
   const [targetType, setTargetType] = useState('');
@@ -127,6 +151,13 @@ const AdminReviewsPage: React.FC = () => {
   const [activeReviewId, setActiveReviewId] = useState<string | null>(null);
   const [reasonCode, setReasonCode] = useState('');
   const [comment, setComment] = useState('');
+  const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [userSearch, setUserSearch] = useState('');
+  const [userRoleFilter, setUserRoleFilter] = useState('');
+  const [draftRoles, setDraftRoles] = useState<Record<string, UserRole>>({});
+  const [savingUserId, setSavingUserId] = useState<string | null>(null);
+  const [roleMessage, setRoleMessage] = useState<string | null>(null);
 
   const visibleTargetTypes = useMemo(() => {
     if (user?.role === 'CLUB_OPERATOR') return ['DONATION'];
@@ -152,6 +183,28 @@ const AdminReviewsPage: React.FC = () => {
     }
   }, [canReview, status, targetType]);
 
+  const loadAdminUsers = useCallback(async () => {
+    if (!isAdmin) return;
+    try {
+      setUsersLoading(true);
+      setError(null);
+      setRoleMessage(null);
+      const response = await apiClient.getAdminUsers({
+        q: userSearch.trim() || undefined,
+        role: userRoleFilter || undefined,
+        page: 1,
+        pageSize: 100,
+      });
+      const users = response.data || [];
+      setAdminUsers(users);
+      setDraftRoles(Object.fromEntries(users.map((entry) => [entry.id, entry.role as UserRole])));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load users');
+    } finally {
+      setUsersLoading(false);
+    }
+  }, [isAdmin, userRoleFilter, userSearch]);
+
   useEffect(() => {
     if (!loading && canReview) {
       loadReviews();
@@ -159,6 +212,12 @@ const AdminReviewsPage: React.FC = () => {
       setFetching(false);
     }
   }, [loading, canReview, loadReviews]);
+
+  useEffect(() => {
+    if (!loading && isAdmin) {
+      loadAdminUsers();
+    }
+  }, [loading, isAdmin, loadAdminUsers]);
 
   useEffect(() => {
     if (user?.role === 'CLUB_OPERATOR') {
@@ -195,6 +254,29 @@ const AdminReviewsPage: React.FC = () => {
       setError(err instanceof Error ? err.message : 'Failed to decide review');
     } finally {
       setActiveReviewId(null);
+    }
+  };
+
+  const saveRole = async (targetUser: AdminUser) => {
+    const nextRole = draftRoles[targetUser.id];
+    if (!nextRole || nextRole === targetUser.role) return;
+    if (targetUser.id === user?.id) {
+      setError(text.selfRoleLocked);
+      return;
+    }
+
+    try {
+      setSavingUserId(targetUser.id);
+      setError(null);
+      setRoleMessage(null);
+      const response = await apiClient.updateAdminUserRole(targetUser.id, nextRole);
+      setAdminUsers((current) => current.map((entry) => (entry.id === targetUser.id ? response.data : entry)));
+      setDraftRoles((current) => ({ ...current, [targetUser.id]: response.data.role as UserRole }));
+      setRoleMessage(text.roleUpdated);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to update role');
+    } finally {
+      setSavingUserId(null);
     }
   };
 
@@ -271,6 +353,118 @@ const AdminReviewsPage: React.FC = () => {
           <div className="mb-5 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-red-700">
             {error}
           </div>
+        )}
+
+        {isAdmin && (
+          <section className="mb-6 rounded-lg border border-white/55 bg-white/58 p-5 shadow-[0_18px_44px_rgba(27,79,49,0.10)]">
+            <div className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
+              <div>
+                <p className="mb-2 inline-flex items-center gap-2 rounded-md border border-[#9cc69e] bg-[#edf7e7] px-3 py-1 text-sm font-semibold text-[#28513b]">
+                  <UserCog className="h-4 w-4" />
+                  {text.rolePanelTitle}
+                </p>
+                <p className="text-sm text-[#315842]">{text.rolePanelSubtitle}</p>
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <input
+                  value={userSearch}
+                  onChange={(event) => setUserSearch(event.target.value)}
+                  placeholder={text.userSearchPlaceholder}
+                  className="h-11 w-full rounded-md border border-[#9cc69e] bg-white/85 px-3 text-[#204932] outline-none focus:border-[#28513b] sm:w-64"
+                />
+                <select
+                  value={userRoleFilter}
+                  onChange={(event) => setUserRoleFilter(event.target.value)}
+                  className="h-11 rounded-md border border-[#9cc69e] bg-white/85 px-3 text-[#204932]"
+                >
+                  <option value="">{text.allRoles}</option>
+                  {roleOptions.map((option) => (
+                    <option key={option} value={option}>{option}</option>
+                  ))}
+                </select>
+                <button
+                  onClick={loadAdminUsers}
+                  disabled={usersLoading}
+                  className="inline-flex h-11 items-center gap-2 rounded-md bg-[#28513b] px-4 font-semibold text-white hover:bg-[#1f3f2f] disabled:opacity-60"
+                >
+                  {usersLoading ? <Loader className="h-4 w-4 animate-spin" /> : <Users className="h-4 w-4" />}
+                  {text.loadUsers}
+                </button>
+              </div>
+            </div>
+
+            {roleMessage && (
+              <div className="mb-4 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+                {roleMessage}
+              </div>
+            )}
+
+            <div className="overflow-x-auto rounded-md border border-[#c8dec2] bg-white/70">
+              <table className="min-w-full divide-y divide-[#c8dec2] text-left text-sm">
+                <thead className="bg-[#edf7e7] text-xs uppercase tracking-wide text-[#28513b]">
+                  <tr>
+                    <th className="px-4 py-3">Email</th>
+                    <th className="px-4 py-3">Name</th>
+                    <th className="px-4 py-3">Role</th>
+                    <th className="px-4 py-3">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#dbe9d6] text-[#204932]">
+                  {usersLoading ? (
+                    <tr>
+                      <td className="px-4 py-8 text-center text-[#315842]" colSpan={4}>
+                        <Loader className="mr-2 inline h-4 w-4 animate-spin" />
+                        {text.loadUsers}
+                      </td>
+                    </tr>
+                  ) : adminUsers.length === 0 ? (
+                    <tr>
+                      <td className="px-4 py-8 text-center text-[#315842]" colSpan={4}>{text.noUsers}</td>
+                    </tr>
+                  ) : (
+                    adminUsers.map((entry) => {
+                      const selectedRole = draftRoles[entry.id] || (entry.role as UserRole);
+                      const unchanged = selectedRole === entry.role;
+                      const isSelf = entry.id === user?.id;
+                      return (
+                        <tr key={entry.id}>
+                          <td className="whitespace-nowrap px-4 py-3 font-semibold">{entry.email}</td>
+                          <td className="whitespace-nowrap px-4 py-3">{entry.name || '-'}</td>
+                          <td className="px-4 py-3">
+                            <select
+                              value={selectedRole}
+                              onChange={(event) =>
+                                setDraftRoles((current) => ({
+                                  ...current,
+                                  [entry.id]: event.target.value as UserRole,
+                                }))
+                              }
+                              disabled={isSelf}
+                              className="h-10 rounded-md border border-[#9cc69e] bg-white px-3 text-[#204932] disabled:opacity-60"
+                            >
+                              {roleOptions.map((option) => (
+                                <option key={option} value={option}>{option}</option>
+                              ))}
+                            </select>
+                          </td>
+                          <td className="px-4 py-3">
+                            <button
+                              onClick={() => saveRole(entry)}
+                              disabled={unchanged || isSelf || savingUserId === entry.id}
+                              className="inline-flex h-10 items-center gap-2 rounded-md bg-[#28513b] px-3 font-semibold text-white hover:bg-[#1f3f2f] disabled:cursor-not-allowed disabled:opacity-50"
+                            >
+                              {savingUserId === entry.id && <Loader className="h-4 w-4 animate-spin" />}
+                              {savingUserId === entry.id ? text.savingRole : text.saveRole}
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
         )}
 
         {fetching ? (
