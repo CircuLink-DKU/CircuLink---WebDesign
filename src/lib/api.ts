@@ -369,6 +369,29 @@ class ApiClient {
     });
   }
 
+  // Admin
+  async getAdminUsers(params?: {
+    q?: string;
+    role?: string;
+    page?: number;
+    pageSize?: number;
+  }) {
+    const query = new URLSearchParams();
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined) query.append(key, String(value));
+      });
+    }
+    return this.request<{ data: AdminUser[]; meta: PaginationMeta }>(`/admin/users?${query}`);
+  }
+
+  async updateAdminUserRole(id: string, role: UserRole) {
+    return this.request<{ data: AdminUser }>(`/admin/users/${id}/role`, {
+      method: "PATCH",
+      body: JSON.stringify({ role }),
+    });
+  }
+
   // AI
   async suggestItemFromImages(data: AiItemSuggestInput) {
     return this.request<{ data: AiItemSuggestResult }>("/ai/item-suggest", {
@@ -411,12 +434,24 @@ export interface User {
   id: string;
   email: string;
   name: string | null;
-  role: string;
+  role: UserRole | string;
   profile?: {
     phone?: string | null;
     university?: string | null;
     avatarUrl?: string | null;
   };
+}
+
+export type UserRole = "USER" | "CLUB_OPERATOR" | "BUY42_PARTNER" | "ADMIN";
+
+export interface AdminUser {
+  id: string;
+  email: string;
+  name: string | null;
+  role: UserRole | string;
+  emailVerifiedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface Category {
