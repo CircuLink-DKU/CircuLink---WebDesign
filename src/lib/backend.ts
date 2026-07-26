@@ -101,6 +101,15 @@ export const createAndSignInTestUser = async () => {
   return { data: data2, error: error2 };
 };
 
+export const resendVerificationEmail = async (email: string) => {
+  try {
+    const response = await apiClient.requestEmailVerification(email);
+    return { data: response, error: null };
+  } catch (error) {
+    return { data: null, error: error instanceof ApiError ? error : new Error(String(error)) };
+  }
+};
+
 export const signOut = async () => {
   try {
     await apiClient.logout();

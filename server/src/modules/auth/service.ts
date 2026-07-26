@@ -5,6 +5,8 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
 import { AuthError, ConflictError, NotFoundError } from "../../utils/errors.js";
 import { authConfig, env } from "../../config/env.js";
+import { sendPasswordResetEmail, sendVerificationEmail } from "../../lib/mailer.js";
+import { logger } from "../../lib/logger.js";
 
 const parseDurationMs = (value: string) => {
   const match = value.trim().match(/^(\d+)(ms|s|m|h|d)?$/i);
@@ -73,6 +75,13 @@ const refreshExpiresAt = () => {
   return new Date(Date.now() + (ttlMs || 7 * 24 * 60 * 60 * 1000));
 };
 
+const createEmailVerificationTokenRecord = async (userId: string) => {
+  const token = crypto.randomBytes(32).toString("hex");
+  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  await prisma.emailVerificationToken.create({ data: { userId, token, expiresAt } });
+  return { token, expiresAt };
+};
+
 export const registerUser = async (payload: { email: string; password: string; name?: string }) => {
   const existing = await prisma.user.findUnique({ where: { email: payload.email } });
   if (existing) throw new ConflictError("Email already in use");
@@ -93,6 +102,15 @@ export const registerUser = async (payload: { email: string; password: string; n
 
   const accessToken = issueAccessToken({ id: user.id, email: user.email, role: user.role });
   const refreshToken = await createRefreshTokenRecord(user.id);
+
+  // 注册成功后自动发送验证邮件；发信失败不应阻断注册流程，仅记录日志。
+  // 验证邮箱只是给账号打上 emailVerifiedAt 标记，不影响注册/登录本身。
+  try {
+    const { token } = await createEmailVerificationTokenRecord(user.id);
+    await sendVerificationEmail(user.email, token);
+  } catch (error) {
+    logger.error({ err: error, userId: user.id }, "Failed to send verification email on register");
+  }
 
   return {
     user: { id: user.id, email: user.email, name: user.name, role: user.role, emailVerifiedAt: user.emailVerifiedAt },
@@ -164,14 +182,11 @@ export const requestEmailVerification = async (email: string) => {
   const user = await prisma.user.findUnique({ where: { email } });
   if (!user) throw new NotFoundError("User not found");
 
-  const token = crypto.randomBytes(32).toString("hex");
-  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  const { token, expiresAt } = await createEmailVerificationTokenRecord(user.id);
+  await sendVerificationEmail(user.email, token);
 
-  await prisma.emailVerificationToken.create({
-    data: { userId: user.id, token, expiresAt }
-  });
-
-  return { token, expiresAt };
+  // 生产环境不回传原始 token，避免绕过邮件直接拿到验证凭证；开发环境保留方便本地联调。
+  return env.NODE_ENV === "production" ? { expiresAt } : { token, expiresAt };
 };
 
 export const verifyEmailToken = async (token: string) => {
@@ -202,7 +217,9 @@ export const requestPasswordReset = async (email: string) => {
     data: { userId: user.id, token, expiresAt }
   });
 
-  return { token, expiresAt };
+  await sendPasswordResetEmail(user.email, token);
+
+  return env.NODE_ENV === "production" ? { expiresAt } : { token, expiresAt };
 };
 
 export const resetPassword = async (token: string, password: string) => {

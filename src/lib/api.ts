@@ -117,6 +117,20 @@ class ApiClient {
     });
   }
 
+  async verifyEmail(token: string) {
+    return this.request<void>("/auth/verify", {
+      method: "POST",
+      body: JSON.stringify({ token }),
+    });
+  }
+
+  async requestEmailVerification(email: string) {
+    return this.request<{ data: { expiresAt: string } }>("/auth/verify/request", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    });
+  }
+
   // Categories
   async getCategories() {
     return this.request<{ data: Category[] }>("/categories");
@@ -435,6 +449,7 @@ export interface User {
   email: string;
   name: string | null;
   role: UserRole | string;
+  emailVerifiedAt?: string | null;
   profile?: {
     phone?: string | null;
     university?: string | null;

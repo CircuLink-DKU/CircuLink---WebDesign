@@ -40,7 +40,14 @@ const envSchema = z.object({
   UPLOAD_DIR: z.string().default("uploads"),
   OPENAI_API_KEY: z.string().optional(),
   OPENAI_BASE_URL: z.string().default("https://api.openai.com/v1"),
-  OPENAI_MODEL: z.string().default("gpt-4.1-mini")
+  OPENAI_MODEL: z.string().default("gpt-4.1-mini"),
+  // 阿里云邮件推送（DirectMail）SMTP 配置，见 server/src/lib/mailer.ts 顶部注释
+  DM_SMTP_HOST: z.string().optional(),
+  DM_SMTP_PORT: z.string().default("465"),
+  DM_SMTP_USER: z.string().optional(),
+  DM_SMTP_PASS: z.string().optional(),
+  MAIL_FROM_NAME: z.string().default("Circulink"),
+  APP_BASE_URL: z.string().default("http://localhost:5173")
 });
 
 const parsedEnv = envSchema.parse({
@@ -65,4 +72,13 @@ export const authConfig = {
   accessTtl: env.JWT_ACCESS_TTL,
   refreshTtl: env.JWT_REFRESH_TTL,
   bcryptRounds: parseInt(env.BCRYPT_ROUNDS, 10) || 10
+};
+
+export const mailConfig = {
+  host: env.DM_SMTP_HOST?.trim(),
+  port: parseInt(env.DM_SMTP_PORT, 10) || 465,
+  user: env.DM_SMTP_USER?.trim(),
+  pass: env.DM_SMTP_PASS,
+  fromName: env.MAIL_FROM_NAME,
+  appBaseUrl: env.APP_BASE_URL.replace(/\/$/, "")
 };
