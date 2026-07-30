@@ -17,7 +17,7 @@ import {
   UserRound,
   type LucideIcon,
 } from 'lucide-react';
-import { signOut, updateProfile as updateBackendProfile } from '../lib/backend';
+import { signOut, updateProfile as updateBackendProfile, resendVerificationEmail } from '../lib/backend';
 import { apiClient } from '../lib/api';
 import type { Item } from '../lib/api';
 
@@ -164,7 +164,8 @@ const ProfilePage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { t, lang } = useLanguage();
-  const { profile, isAuthenticated, refreshProfile } = useAuth();
+  const { user, profile, isAuthenticated, refreshProfile } = useAuth();
+  const [resendState, setResendState] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
   const [activeTab, setActiveTab] = useState<'info' | 'items' | 'favorites'>('info');
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -236,6 +237,13 @@ const ProfilePage: React.FC = () => {
       loadMyFavorites();
     }
   }, [activeTab, loadMyFavorites, loadMyItems, myFavorites.length, myItems.length]);
+
+  const handleResendVerification = async () => {
+    if (!user?.email) return;
+    setResendState('sending');
+    const { error } = await resendVerificationEmail(user.email);
+    setResendState(error ? 'error' : 'sent');
+  };
 
   const handleSignOut = async () => {
     await signOut();
@@ -368,7 +376,39 @@ const ProfilePage: React.FC = () => {
                   <span className="rounded-full border border-white/55 bg-white/30 px-4 py-2 text-sm font-medium text-[#355c46]">
                     {profile?.phone || (lang === 'zh' ? '未填写手机号' : 'No phone added')}
                   </span>
+                  {user?.emailVerifiedAt ? (
+                    <span className="rounded-full border border-[#8fb48d] bg-[#dff0d8] px-4 py-2 text-sm font-medium text-[#25583b]">
+                      ✓ {lang === 'zh' ? '邮箱已验证' : 'Email verified'}
+                    </span>
+                  ) : (
+                    <span className="rounded-full border border-[#d4c58f] bg-[#fff4cf] px-4 py-2 text-sm font-medium text-[#87671d]">
+                      {lang === 'zh' ? '邮箱未验证' : 'Email not verified'}
+                    </span>
+                  )}
                 </div>
+                {!user?.emailVerifiedAt && (
+                  <div className="mt-3 flex flex-wrap items-center justify-center gap-2 md:justify-start">
+                    <button
+                      onClick={handleResendVerification}
+                      disabled={resendState === 'sending'}
+                      className="text-sm font-semibold text-[#1f6a3d] underline underline-offset-2 hover:text-[#185532] disabled:opacity-60"
+                    >
+                      {resendState === 'sending'
+                        ? (lang === 'zh' ? '发送中…' : 'Sending…')
+                        : (lang === 'zh' ? '重新发送验证邮件' : 'Resend verification email')}
+                    </button>
+                    {resendState === 'sent' && (
+                      <span className="text-sm text-[#25583b]">
+                        {lang === 'zh' ? '已发送，请查收邮箱' : 'Sent — check your inbox'}
+                      </span>
+                    )}
+                    {resendState === 'error' && (
+                      <span className="text-sm text-[#a0392f]">
+                        {lang === 'zh' ? '发送失败，请稍后重试' : 'Failed to send, please try again'}
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 

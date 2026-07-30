@@ -23,6 +23,7 @@ import MessagesPage from './pages/MessagesPage';
 import AIRecommendationPage from './pages/AIRecommendationPage';
 import OrdersPage from './pages/OrdersPage';
 import OrderDetailPage from './pages/OrderDetailPage';
+import VerifyEmailPage from './pages/VerifyEmailPage';
 import NewItemModal from './components/NewItemModal';
 import FavoritesModal from './components/FavoritesModal';
 
@@ -97,6 +98,7 @@ function App() {
           <Route path="/ai-recommendation" element={<MarketplaceRoute><AIRecommendationPage /></MarketplaceRoute>} />
           <Route path="/orders" element={<MarketplaceRoute><OrdersPage /></MarketplaceRoute>} />
           <Route path="/orders/:id" element={<MarketplaceRoute><OrderDetailPage /></MarketplaceRoute>} />
+          <Route path="/verify-email" element={<VerifyEmailPage />} />
         </Routes>
 
         <NewItemModal
