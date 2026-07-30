@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Navigate, Routes, Route } from 'react-router-dom';
 import Header from './components/Header';
+import Footer from './components/Footer';
 import { LanguageProvider } from './context/LanguageContext';
 import { useAuth } from './hooks/useAuth';
 import HomePage from './pages/HomePage';
@@ -107,6 +108,7 @@ function App() {
           isOpen={showFavoritesModal}
           onClose={() => setShowFavoritesModal(false)}
         />
+        <Footer />
       </div>
     </LanguageProvider>
   );
