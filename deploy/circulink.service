@@ -1,0 +1,21 @@
+[Unit]
+Description=CircuLink Express API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=admin
+Group=circulink-dev
+WorkingDirectory=/var/www/circulink
+EnvironmentFile=/var/www/circulink/.env
+ExecStart=/usr/bin/node /var/www/circulink/dist/server/index.js
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target
