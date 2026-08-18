@@ -4,13 +4,13 @@ import path from "path";
 import fs from "fs/promises";
 import { requireAuth } from "../../middleware/auth.js";
 import { asyncHandler } from "../../utils/async-handler.js";
-import { serverConfig } from "../../config/env.js";
+import { serverConfig, r2Enabled } from "../../config/env.js";
 import { BadRequestError } from "../../utils/errors.js";
 import { uploadFileController } from "./controller.js";
 
 const router = Router();
 
-const storage = multer.diskStorage({
+const diskStorage = multer.diskStorage({
   destination: (_req, _file, cb) => {
     const now = new Date();
     const dir = path.join(
@@ -29,6 +29,8 @@ const storage = multer.diskStorage({
     cb(null, name);
   }
 });
+
+const storage = r2Enabled ? multer.memoryStorage() : diskStorage;
 
 const upload = multer({
   storage,
