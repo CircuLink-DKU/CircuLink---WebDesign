@@ -47,7 +47,12 @@ const envSchema = z.object({
   DM_SMTP_USER: z.string().optional(),
   DM_SMTP_PASS: z.string().optional(),
   MAIL_FROM_NAME: z.string().default("Circulink"),
-  APP_BASE_URL: z.string().default("http://localhost:5173")
+  APP_BASE_URL: z.string().default("http://localhost:5173"),
+  R2_ENDPOINT: z.string().optional(),
+  R2_ACCESS_KEY_ID: z.string().optional(),
+  R2_SECRET_ACCESS_KEY: z.string().optional(),
+  R2_BUCKET: z.string().optional(),
+  R2_PUBLIC_URL: z.string().optional()
 });
 
 const parsedEnv = envSchema.parse({
@@ -81,4 +86,16 @@ export const mailConfig = {
   pass: env.DM_SMTP_PASS,
   fromName: env.MAIL_FROM_NAME,
   appBaseUrl: env.APP_BASE_URL.replace(/\/$/, "")
+};
+
+export const r2Enabled = Boolean(
+  env.R2_ENDPOINT && env.R2_ACCESS_KEY_ID && env.R2_SECRET_ACCESS_KEY && env.R2_BUCKET && env.R2_PUBLIC_URL
+);
+
+export const r2Config = {
+  endpoint: env.R2_ENDPOINT ?? "",
+  accessKeyId: env.R2_ACCESS_KEY_ID ?? "",
+  secretAccessKey: env.R2_SECRET_ACCESS_KEY ?? "",
+  bucket: env.R2_BUCKET ?? "",
+  publicUrl: (env.R2_PUBLIC_URL ?? "").replace(/\/$/, "")
 };
