@@ -8,11 +8,12 @@ import { BusinessCode } from "../types/business-code.enum.js";
 // 统一的错误响应格式
 const errorResponse = (
   res: Response,
+  status: number,
   code: BusinessCode | number,
   message: string,
   path?: string
 ) => {
-  return res.status(200).json({
+  return res.status(status).json({
     code: typeof code === 'number' ? code : BusinessCode.FAIL,
     message,
     data: null,
@@ -30,6 +31,7 @@ export const errorHandler = (err: unknown, req: Request, res: Response, _next: N
     if (err.code === "LIMIT_FILE_SIZE") {
       return errorResponse(
         res,
+        413,
         BusinessCode.PARAM_ERROR,
         "文件过大，最大允许 10MB",
         path
@@ -37,6 +39,7 @@ export const errorHandler = (err: unknown, req: Request, res: Response, _next: N
     }
     return errorResponse(
       res,
+      400,
       BusinessCode.PARAM_ERROR,
       `上传错误: ${err.message}`,
       path
@@ -52,6 +55,7 @@ export const errorHandler = (err: unknown, req: Request, res: Response, _next: N
   ) {
     return errorResponse(
       res,
+      413,
       BusinessCode.PARAM_ERROR,
       "请求体过大，请使用文件上传接口",
       path
@@ -62,6 +66,7 @@ export const errorHandler = (err: unknown, req: Request, res: Response, _next: N
   if (err instanceof ZodError) {
     return errorResponse(
       res,
+      400,
       BusinessCode.PARAM_ERROR,
       `参数验证失败: ${err.message}`,
       path
@@ -75,10 +80,12 @@ export const errorHandler = (err: unknown, req: Request, res: Response, _next: N
     if (err.status === 401) code = BusinessCode.AUTH_ERROR;
     else if (err.status === 403) code = BusinessCode.PERMISSION_DENIED;
     else if (err.status === 404) code = BusinessCode.DATA_NOT_FOUND;
+    else if (err.status === 409) code = BusinessCode.DATA_EXISTS;
     else if (err.status === 400) code = BusinessCode.PARAM_ERROR;
     
     return errorResponse(
       res,
+      err.status,
       code,
       err.message || "请求失败",
       path
@@ -93,6 +100,7 @@ export const errorHandler = (err: unknown, req: Request, res: Response, _next: N
     if (prismaError.code === 'P2002') {
       return errorResponse(
         res,
+        409,
         BusinessCode.DATA_EXISTS,
         '数据已存在，请勿重复添加',
         path
@@ -103,6 +111,7 @@ export const errorHandler = (err: unknown, req: Request, res: Response, _next: N
     if (prismaError.code === 'P2025') {
       return errorResponse(
         res,
+        404,
         BusinessCode.DATA_NOT_FOUND,
         '操作的数据不存在',
         path
@@ -114,6 +123,7 @@ export const errorHandler = (err: unknown, req: Request, res: Response, _next: N
   logger.error({ err, requestId: req.requestId }, "Unhandled error");
   return errorResponse(
     res,
+    500,
     BusinessCode.SYSTEM_ERROR,
     process.env.NODE_ENV === 'production' 
       ? '服务器内部错误，请稍后重试' 
