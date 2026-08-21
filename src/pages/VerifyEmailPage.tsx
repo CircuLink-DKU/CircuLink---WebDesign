@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
 import { apiClient, ApiError } from '../lib/api';
@@ -11,6 +11,7 @@ const VerifyEmailPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const [status, setStatus] = useState<Status>('loading');
   const [errorMessage, setErrorMessage] = useState('');
+  const verifiedToken = useRef<string | null>(null);
 
   useEffect(() => {
     const token = searchParams.get('token');
@@ -20,6 +21,10 @@ const VerifyEmailPage: React.FC = () => {
       setErrorMessage(lang === 'zh' ? '验证链接无效，缺少 token。' : 'Invalid verification link: missing token.');
       return;
     }
+    if (verifiedToken.current === token) return;
+    verifiedToken.current = token;
+    setStatus('loading');
+    setErrorMessage('');
 
     apiClient
       .verifyEmail(token)
