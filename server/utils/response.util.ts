@@ -38,7 +38,7 @@ export class ResponseUtil {
     res: Response,
     code: BusinessCode = BusinessCode.FAIL,
     message: string = '操作失败',
-    details?: any
+    details?: unknown
   ): Response {
     return res.status(200).json({
       code,

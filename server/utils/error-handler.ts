@@ -11,13 +11,13 @@ import { ApiError } from '@/types/api.types';
 export class ApiException extends Error {
   public readonly code: BusinessCode;
   public readonly type: ErrorType;
-  public readonly details?: any;
+  public readonly details?: unknown;
 
   constructor(
     message: string,
     code: BusinessCode = BusinessCode.FAIL,
     type: ErrorType = ErrorType.UNKNOWN,
-    details?: any
+    details?: unknown
   ) {
     super(message);
     this.name = 'ApiException';
@@ -31,7 +31,7 @@ export class ApiException extends Error {
  * 网络异常类
  */
 export class NetworkException extends ApiException {
-  constructor(message: string = '网络连接失败，请检查网络设置', details?: any) {
+  constructor(message: string = '网络连接失败，请检查网络设置', details?: unknown) {
     super(message, BusinessCode.SYSTEM_ERROR, ErrorType.NETWORK, details);
   }
 }
@@ -40,7 +40,7 @@ export class NetworkException extends ApiException {
  * 超时异常类
  */
 export class TimeoutException extends ApiException {
-  constructor(message: string = '请求超时，请稍后重试', details?: any) {
+  constructor(message: string = '请求超时，请稍后重试', details?: unknown) {
     super(message, BusinessCode.SYSTEM_ERROR, ErrorType.TIMEOUT, details);
   }
 }
@@ -99,7 +99,7 @@ export class ErrorHandler {
       typeof error === 'object' &&
       error !== null &&
       'isAxiosError' in error &&
-      (error as any).isAxiosError === true
+      (error as { isAxiosError?: boolean }).isAxiosError === true
     );
   }
 
@@ -119,7 +119,7 @@ export class ErrorHandler {
     }
 
     const status = error.response.status;
-    const data = error.response.data as any;
+    const data = error.response.data as { message?: string } | undefined;
 
     // 情况2：根据 HTTP 状态码分类处理
     switch (status) {

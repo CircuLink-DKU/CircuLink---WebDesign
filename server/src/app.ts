@@ -1,5 +1,4 @@
 import express from "express";
-import { ErrorMiddleware } from './middleware/error.middleware';
 import cors from "cors";
 import path from "path";
 import fs from "fs/promises";

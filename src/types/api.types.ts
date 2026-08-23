@@ -6,7 +6,7 @@ import { BusinessCode, ErrorType } from './api.enum';
  * 统一API响应格式
  * 后端返回的数据结构
  */
-export interface ApiResponse<T = any> {
+export interface ApiResponse<T = unknown> {
   /** 业务状态码 */
   code: BusinessCode;
   /** 提示信息 */
@@ -31,7 +31,7 @@ export interface ApiError {
   /** 错误类型 */
   type: ErrorType;
   /** 错误详情（可选） */
-  details?: any;
+  details?: unknown;
   /** 时间戳 */
   timestamp: number;
 }
@@ -83,7 +83,7 @@ export interface PageResult<T> {
 /**
  * 带分页的统一响应格式
  */
-export interface ApiPageResponse<T> extends ApiResponse<PageResult<T>> {}
+export type ApiPageResponse<T> = ApiResponse<PageResult<T>>;
 
 /**
  * 列表查询参数（带分页和筛选）
@@ -98,5 +98,5 @@ export interface ListQueryParams extends PageParams {
   /** 结束时间 */
   endDate?: string;
   /** 其他筛选条件 */
-  [key: string]: any;
+  [key: string]: unknown;
 }
