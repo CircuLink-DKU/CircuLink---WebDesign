@@ -490,7 +490,7 @@ const SellPage: React.FC = () => {
 
           <div className="flex items-start gap-3 rounded-[1.1rem] border border-[#8fb48d] bg-[#e2f0da] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.26)]">
             <input
-              type="radio"
+              type="checkbox"
               id="autoPriceReduce"
               checked={autoPriceReduce}
               onChange={(e) => setAutoPriceReduce(e.target.checked)}
@@ -512,7 +512,7 @@ const SellPage: React.FC = () => {
         <div className={`${moduleCardClass} mb-12`}>
           <div className="flex items-start gap-3 mb-4">
             <input
-              type="radio"
+              type="checkbox"
               id="autoDonation"
               checked={autoDonation}
               onChange={(e) => setAutoDonation(e.target.checked)}

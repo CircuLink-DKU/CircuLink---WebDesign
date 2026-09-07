@@ -271,11 +271,15 @@ const ProfilePage: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      await updateBackendProfile(profile!.id, {
+      // updateBackendProfile resolves with { data, error } instead of throwing,
+      // so a failed save must be detected explicitly — otherwise it looks like a
+      // success while the edits silently revert on refresh.
+      const { error: saveError } = await updateBackendProfile(profile!.id, {
         full_name: editForm.name,
         phone: editForm.phone,
         university: editForm.university,
       });
+      if (saveError) throw saveError;
       await refreshProfile();
       setIsEditing(false);
     } catch (err) {

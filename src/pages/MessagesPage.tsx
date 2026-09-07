@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { MessageCircle, Send, Loader, AlertCircle, Search } from 'lucide-react';
+import { MessageCircle, Send, Loader, AlertCircle, Search, ChevronLeft } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { apiClient, Message as ApiMessage, MessageThread } from '../lib/api';
@@ -30,6 +30,9 @@ const MessagesPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // On narrow screens the list and the chat can't both fit; this toggles between
+  // them (desktop shows both side by side regardless).
+  const [mobileChatOpen, setMobileChatOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const queryItemId = searchParams.get('itemId');
   const querySellerId = searchParams.get('sellerId');
@@ -67,7 +70,15 @@ const MessagesPage: React.FC = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const loadThreads = useCallback(async () => {
+  // A "contact seller" deep link should open the chat pane directly on mobile.
+  useEffect(() => {
+    if (canStartNewThread) setMobileChatOpen(true);
+  }, [canStartNewThread]);
+
+  // Fetch threads only. Selection is handled separately (see effect below) so
+  // that the 3s background poll never yanks the user back to another thread.
+  // `silent` skips the full-page loading spinner for background refreshes.
+  const loadThreads = useCallback(async (silent = false) => {
     if (!user) {
       setThreads([]);
       setSelectedThreadId(null);
@@ -78,11 +89,11 @@ const MessagesPage: React.FC = () => {
     }
 
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       setError(null);
       const response = await apiClient.getMessageThreads();
       const threadList = response.data || [];
-      
+
       // Transform threads to include participant names
       const transformedThreads: ThreadDisplay[] = threadList.map((thread: MessageThread) => ({
         id: thread.id,
@@ -94,18 +105,8 @@ const MessagesPage: React.FC = () => {
         unreadCount: thread.unreadCount || 0,
         lastMessageTime: thread.lastMessage?.createdAt
       }));
-      
+
       setThreads(transformedThreads);
-      if (queryItemId && querySellerId) {
-        const matchedThread = transformedThreads.find(
-          (thread) => thread.itemId === queryItemId && thread.sellerId === querySellerId
-        );
-        if (matchedThread) {
-          setSelectedThreadId(matchedThread.id);
-          return;
-        }
-      }
-      if (transformedThreads.length > 0) setSelectedThreadId(transformedThreads[0].id);
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : 'Failed to load conversations';
       setError(errorMsg);
@@ -113,18 +114,34 @@ const MessagesPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [lang, queryItemId, querySellerId, user]);
+  }, [lang, user]);
 
   // Load all message threads on mount
   useEffect(() => {
     loadThreads();
   }, [loadThreads, user?.id]);
 
+  // Auto-select a thread only when the user hasn't chosen one yet, so the poll
+  // never overrides a manual selection. When arriving from "contact seller"
+  // (itemId+sellerId) with no existing thread, stay unselected so the next send
+  // starts a NEW thread with the intended seller instead of an unrelated one.
+  useEffect(() => {
+    if (selectedThreadId) return;
+    if (queryItemId && querySellerId) {
+      const matched = threads.find(
+        (thread) => thread.itemId === queryItemId && thread.sellerId === querySellerId
+      );
+      if (matched) setSelectedThreadId(matched.id);
+      return;
+    }
+    if (threads.length > 0) setSelectedThreadId(threads[0].id);
+  }, [threads, selectedThreadId, queryItemId, querySellerId]);
+
   useEffect(() => {
     if (!user) return;
 
     const timer = window.setInterval(() => {
-      loadThreads();
+      loadThreads(true);
       if (selectedThreadId) {
         loadMessages(selectedThreadId);
       }
@@ -175,7 +192,7 @@ const MessagesPage: React.FC = () => {
   return (
     <div className="flex h-[calc(100vh-48px)] bg-gradient-to-br from-emerald-50 via-cyan-50 to-sky-50">
       {/* Threads List Sidebar */}
-      <div className="w-full md:w-80 bg-white border-r border-emerald-200 shadow-lg overflow-hidden flex flex-col">
+      <div className={`${mobileChatOpen ? 'hidden' : 'flex'} md:flex w-full md:w-80 bg-white border-r border-emerald-200 shadow-lg overflow-hidden flex-col`}>
         {/* Header */}
         <div className="p-3 sm:p-6 border-b border-emerald-100 bg-gradient-to-r from-emerald-50 to-cyan-50">
           <h2 className="text-xl sm:text-2xl font-bold text-emerald-800 mb-3 flex items-center gap-2">
@@ -214,7 +231,10 @@ const MessagesPage: React.FC = () => {
               {filteredThreads.map((thread) => (
                 <button
                   key={thread.id}
-                  onClick={() => setSelectedThreadId(thread.id)}
+                  onClick={() => {
+                    setSelectedThreadId(thread.id);
+                    setMobileChatOpen(true);
+                  }}
                   className={`w-full text-left p-4 rounded-lg mb-2 transition-colors ${
                     selectedThreadId === thread.id
                       ? 'bg-emerald-100 border-l-4 border-emerald-500'
@@ -252,12 +272,20 @@ const MessagesPage: React.FC = () => {
       </div>
 
       {/* Chat Area */}
-      <div className="hidden md:flex flex-1 flex-col bg-gradient-to-b from-cyan-50 to-emerald-50">
+      <div className={`${mobileChatOpen ? 'flex' : 'hidden'} md:flex flex-1 flex-col bg-gradient-to-b from-cyan-50 to-emerald-50`}>
         {showComposer ? (
           <>
             {/* Chat Header */}
             <div className="p-6 border-b border-emerald-200 bg-white shadow-sm flex items-center justify-between">
               <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setMobileChatOpen(false)}
+                  className="md:hidden -ml-1 rounded-lg p-1 text-emerald-700 hover:bg-emerald-50"
+                  aria-label={lang === 'zh' ? '返回会话列表' : 'Back to conversations'}
+                >
+                  <ChevronLeft className="h-6 w-6" />
+                </button>
                 <div className="w-12 h-12 rounded-full bg-gradient-to-br from-emerald-400 to-cyan-400 flex items-center justify-center text-white font-semibold">
                   {(selectedThread?.participantName || (lang === 'zh' ? '新会话' : 'New Chat')).charAt(0).toUpperCase()}
                 </div>
@@ -265,7 +293,6 @@ const MessagesPage: React.FC = () => {
                   <h3 className="font-semibold text-emerald-900">
                     {selectedThread?.participantName || (lang === 'zh' ? '新会话' : 'New Conversation')}
                   </h3>
-                  <p className="text-sm text-gray-500">{lang === 'zh' ? '在线' : 'Online'}</p>
                 </div>
               </div>
             </div>

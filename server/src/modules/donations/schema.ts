@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const createDonationSchema = z.object({
   body: z.object({
-    description: z.string().min(1),
+    description: z.string().min(1).max(5000),
     categoryId: z.string().min(1),
     images: z.array(z.string()).max(6).min(1)
   }),

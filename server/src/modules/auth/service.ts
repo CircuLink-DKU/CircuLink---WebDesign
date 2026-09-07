@@ -237,6 +237,12 @@ export const resetPassword = async (token: string, password: string) => {
     prisma.user.update({
       where: { id: record.userId },
       data: { passwordHash }
+    }),
+    // Revoke all existing sessions so a password reset actually locks out anyone
+    // (e.g. an attacker) still holding a refresh token for this account.
+    prisma.refreshToken.updateMany({
+      where: { userId: record.userId, revokedAt: null },
+      data: { revokedAt: new Date() }
     })
   ]);
 };

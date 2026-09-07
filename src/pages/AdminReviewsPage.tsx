@@ -149,8 +149,10 @@ const AdminReviewsPage: React.FC = () => {
   const [fetching, setFetching] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeReviewId, setActiveReviewId] = useState<string | null>(null);
-  const [reasonCode, setReasonCode] = useState('');
-  const [comment, setComment] = useState('');
+  // Reason code / comment are kept per review id so entering a decision on one
+  // card can't leak into another (each PENDING card has its own inputs).
+  const [reasonByReview, setReasonByReview] = useState<Record<string, string>>({});
+  const [commentByReview, setCommentByReview] = useState<Record<string, string>>({});
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
   const [usersLoading, setUsersLoading] = useState(false);
   const [userSearch, setUserSearch] = useState('');
@@ -226,7 +228,9 @@ const AdminReviewsPage: React.FC = () => {
   }, [user?.role]);
 
   const decide = async (review: ReviewQueueEntry, decision: 'approve' | 'reject' | 'requestChanges' | 'hide') => {
-    if (decision !== 'approve' && !reasonCode.trim()) {
+    const reasonCode = (reasonByReview[review.id] || '').trim();
+    const comment = (commentByReview[review.id] || '').trim();
+    if (decision !== 'approve' && !reasonCode) {
       setError(text.decisionRequired);
       return;
     }
@@ -235,8 +239,8 @@ const AdminReviewsPage: React.FC = () => {
       setActiveReviewId(review.id);
       setError(null);
       const payload = {
-        reasonCode: reasonCode.trim() || undefined,
-        comment: comment.trim() || undefined,
+        reasonCode: reasonCode || undefined,
+        comment: comment || undefined,
       };
       if (decision === 'approve') {
         await apiClient.approveReview(review.id, payload);
@@ -247,8 +251,17 @@ const AdminReviewsPage: React.FC = () => {
       } else {
         await apiClient.hideReview(review.id, payload);
       }
-      setReasonCode('');
-      setComment('');
+      // Clear only this review's inputs.
+      setReasonByReview((current) => {
+        const next = { ...current };
+        delete next[review.id];
+        return next;
+      });
+      setCommentByReview((current) => {
+        const next = { ...current };
+        delete next[review.id];
+        return next;
+      });
       await loadReviews();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to decide review');
@@ -514,8 +527,10 @@ const AdminReviewsPage: React.FC = () => {
                   {review.status === 'PENDING' && (
                     <div className="w-full shrink-0 space-y-3 xl:w-[360px]">
                       <select
-                        value={reasonCode}
-                        onChange={(event) => setReasonCode(event.target.value)}
+                        value={reasonByReview[review.id] || ''}
+                        onChange={(event) =>
+                          setReasonByReview((current) => ({ ...current, [review.id]: event.target.value }))
+                        }
                         className="w-full rounded-md border border-[#9cc69e] bg-white px-3 py-2 text-sm text-[#204932] outline-none focus:border-[#28513b]"
                       >
                         <option value="">{text.reasonPlaceholder}</option>
@@ -524,8 +539,10 @@ const AdminReviewsPage: React.FC = () => {
                         ))}
                       </select>
                       <textarea
-                        value={comment}
-                        onChange={(event) => setComment(event.target.value)}
+                        value={commentByReview[review.id] || ''}
+                        onChange={(event) =>
+                          setCommentByReview((current) => ({ ...current, [review.id]: event.target.value }))
+                        }
                         placeholder={text.commentPlaceholder}
                         rows={3}
                         className="w-full resize-none rounded-md border border-[#9cc69e] bg-white px-3 py-2 text-sm text-[#204932] outline-none focus:border-[#28513b]"

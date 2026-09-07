@@ -3,9 +3,10 @@ import { z } from "zod";
 const statusEnum = z.enum(["PENDING", "ACCEPTED", "REJECTED", "PAID", "SHIPPED", "COMPLETED", "CANCELLED"]);
 
 export const createOrderSchema = z.object({
+  // `total` is intentionally NOT accepted from the client: the order amount is
+  // always derived server-side from the item's price to prevent price tampering.
   body: z.object({
-    itemId: z.string(),
-    total: z.coerce.number().positive().optional()
+    itemId: z.string()
   }),
   params: z.object({}),
   query: z.object({})

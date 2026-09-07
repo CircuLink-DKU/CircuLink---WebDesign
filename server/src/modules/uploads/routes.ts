@@ -1,11 +1,13 @@
 import { Router } from "express";
 import multer from "multer";
 import path from "path";
+import crypto from "crypto";
 import fs from "fs/promises";
 import { requireAuth } from "../../middleware/auth.js";
 import { asyncHandler } from "../../utils/async-handler.js";
 import { serverConfig, r2Enabled } from "../../config/env.js";
 import { BadRequestError } from "../../utils/errors.js";
+import { safeImageExt } from "./mime.js";
 import { uploadFileController } from "./controller.js";
 
 const router = Router();
@@ -24,9 +26,10 @@ const diskStorage = multer.diskStorage({
       .catch((error) => cb(error as Error, dir));
   },
   filename: (_req, file, cb) => {
-    const base = file.originalname.replace(/[^a-zA-Z0-9.-]/g, "_");
-    const name = `${Date.now()}-${base}`;
-    cb(null, name);
+    // Never reuse the client-supplied filename/extension. Generate a random name
+    // with an extension derived from the validated mimetype.
+    const ext = safeImageExt(file.mimetype);
+    cb(null, `${Date.now()}-${crypto.randomUUID()}.${ext}`);
   }
 });
 

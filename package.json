@@ -8,11 +8,13 @@
     "build": "npm run build:client && npm run build:server",
     "build:client": "vite build",
     "lint": "eslint .",
+    "typecheck": "tsc --noEmit -p tsconfig.app.json && tsc --noEmit -p server/tsconfig.server.json",
     "preview": "vite preview",
     "dev:server": "tsx watch server/src/index.ts",
     "build:server": "tsc -p server/tsconfig.server.json",
     "start:server": "node dist/server/index.js",
     "prisma:migrate": "prisma migrate dev",
+    "prisma:migrate:deploy": "prisma migrate deploy",
     "prisma:generate": "prisma generate",
     "prisma:studio": "prisma studio",
     "prisma:seed": "node prisma/seed.js"

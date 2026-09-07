@@ -25,7 +25,7 @@ export const listFavorites = async (userId: string, page?: number, pageSize?: nu
         item: {
           include: {
             category: true,
-            seller: { select: { id: true, email: true, name: true } }
+            seller: { select: { id: true, name: true } }
           }
         }
       }

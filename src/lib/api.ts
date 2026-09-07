@@ -11,11 +11,15 @@ class ApiError extends Error {
 class ApiClient {
   private baseUrl: string;
   private token: string | null = null;
+  private refreshToken: string | null = null;
+  // Single-flight guard so concurrent 401s trigger only one refresh call.
+  private refreshPromise: Promise<boolean> | null = null;
 
   constructor(baseUrl: string) {
     this.baseUrl = baseUrl;
-    // Load token from localStorage on init
+    // Load tokens from localStorage on init
     this.token = localStorage.getItem("access_token");
+    this.refreshToken = localStorage.getItem("refresh_token");
   }
 
   setToken(token: string | null) {
@@ -28,13 +32,65 @@ class ApiClient {
     window.dispatchEvent(new CustomEvent(AUTH_TOKEN_CHANGED_EVENT, { detail: { token } }));
   }
 
+  private setRefreshToken(token: string | null) {
+    this.refreshToken = token;
+    if (token) {
+      localStorage.setItem("refresh_token", token);
+    } else {
+      localStorage.removeItem("refresh_token");
+    }
+  }
+
+  private setTokens(tokens: { accessToken: string; refreshToken?: string } | null) {
+    if (!tokens) {
+      this.setToken(null);
+      this.setRefreshToken(null);
+      return;
+    }
+    this.setToken(tokens.accessToken);
+    if (tokens.refreshToken) this.setRefreshToken(tokens.refreshToken);
+  }
+
   getToken(): string | null {
     return this.token;
   }
 
+  // Exchange the refresh token for a fresh access token. Concurrent callers
+  // share one in-flight request; on failure both tokens are cleared.
+  private ensureRefreshed(): Promise<boolean> {
+    if (!this.refreshPromise) {
+      this.refreshPromise = this.performRefresh().finally(() => {
+        this.refreshPromise = null;
+      });
+    }
+    return this.refreshPromise;
+  }
+
+  private async performRefresh(): Promise<boolean> {
+    if (!this.refreshToken) return false;
+    try {
+      const response = await fetch(`${this.baseUrl}/auth/refresh`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refreshToken: this.refreshToken }),
+      });
+      if (!response.ok) {
+        this.setTokens(null);
+        return false;
+      }
+      const data = (await response.json()) as { tokens: { accessToken: string; refreshToken: string } };
+      this.setTokens(data.tokens);
+      return true;
+    } catch {
+      this.setTokens(null);
+      return false;
+    }
+  }
+
   private async request<T>(
     endpoint: string,
-    options: RequestInit = {}
+    options: RequestInit = {},
+    isRetry = false
   ): Promise<T> {
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
@@ -49,6 +105,19 @@ class ApiClient {
       ...options,
       headers,
     });
+
+    // On a 401, try refreshing the access token once and replay the request.
+    if (
+      response.status === 401 &&
+      !isRetry &&
+      this.refreshToken &&
+      !endpoint.startsWith("/auth/refresh")
+    ) {
+      const refreshed = await this.ensureRefreshed();
+      if (refreshed) {
+        return this.request<T>(endpoint, options, true);
+      }
+    }
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ error: { message: response.statusText } }));
@@ -76,7 +145,7 @@ class ApiClient {
       method: "POST",
       body: JSON.stringify(data),
     });
-    this.setToken(response.tokens.accessToken);
+    this.setTokens(response.tokens);
     return response;
   }
 
@@ -85,15 +154,21 @@ class ApiClient {
       method: "POST",
       body: JSON.stringify({ email, password }),
     });
-    this.setToken(response.tokens.accessToken);
+    this.setTokens(response.tokens);
     return response;
   }
 
   async logout() {
     try {
-      await this.request("/auth/logout", { method: "POST" });
+      // Send the refresh token so the server can revoke it.
+      if (this.refreshToken) {
+        await this.request("/auth/logout", {
+          method: "POST",
+          body: JSON.stringify({ refreshToken: this.refreshToken }),
+        });
+      }
     } finally {
-      this.setToken(null);
+      this.setTokens(null);
     }
   }
 
@@ -103,7 +178,7 @@ class ApiClient {
       return await this.request<{ user: User }>("/auth/me");
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
-        this.setToken(null);
+        this.setTokens(null);
         return { user: null };
       }
       throw error;
@@ -128,6 +203,20 @@ class ApiClient {
     return this.request<{ data: { expiresAt: string } }>("/auth/verify/request", {
       method: "POST",
       body: JSON.stringify({ email }),
+    });
+  }
+
+  async requestPasswordReset(email: string) {
+    return this.request<{ data: { expiresAt: string } }>("/auth/password/forgot", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    });
+  }
+
+  async resetPassword(token: string, password: string) {
+    return this.request<void>("/auth/password/reset", {
+      method: "POST",
+      body: JSON.stringify({ token, password }),
     });
   }
 
@@ -415,7 +504,7 @@ class ApiClient {
   }
 
   // Uploads
-  async uploadFile(file: File) {
+  async uploadFile(file: File, isRetry = false): Promise<{ data: { path: string } }> {
     const formData = new FormData();
     formData.append("file", file);
 
@@ -429,6 +518,14 @@ class ApiClient {
       headers,
       body: formData,
     });
+
+    // Mirror request()'s 401 → refresh → replay behavior for uploads.
+    if (response.status === 401 && !isRetry && this.refreshToken) {
+      const refreshed = await this.ensureRefreshed();
+      if (refreshed) {
+        return this.uploadFile(file, true);
+      }
+    }
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ error: { message: response.statusText } }));

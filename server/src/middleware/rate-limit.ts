@@ -13,12 +13,23 @@ type Bucket = {
 
 const buckets = new Map<string, Bucket>();
 
+// Periodically drop expired buckets so the map can't grow unbounded under a
+// flood of distinct clients. `.unref()` keeps this timer from holding the
+// process open.
+const SWEEP_INTERVAL_MS = 60_000;
+const sweepTimer = setInterval(() => {
+  const now = Date.now();
+  for (const [key, bucket] of buckets) {
+    if (now > bucket.resetAt) buckets.delete(key);
+  }
+}, SWEEP_INTERVAL_MS);
+sweepTimer.unref?.();
+
 const getClientKey = (req: Parameters<RequestHandler>[0]) => {
   if (req.user?.id) return `user:${req.user.id}`;
-  const forwarded = req.headers["x-forwarded-for"];
-  const rawIp = Array.isArray(forwarded) ? forwarded[0] : (forwarded || req.ip || "unknown");
-  const ip = String(rawIp).split(",")[0].trim();
-  return `ip:${ip || "unknown"}`;
+  // req.ip is derived from the trusted proxy chain (see `trust proxy` in app.ts),
+  // so it can't be spoofed by an arbitrary X-Forwarded-For header.
+  return `ip:${req.ip || "unknown"}`;
 };
 
 const nowMs = () => Date.now();

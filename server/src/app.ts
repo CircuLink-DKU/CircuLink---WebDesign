@@ -1,9 +1,8 @@
 import express from "express";
-import { ErrorMiddleware } from './middleware/error.middleware';
 import cors from "cors";
 import path from "path";
 import fs from "fs/promises";
-import { authenticate } from "./middleware/auth.js";
+import { authenticate, requireAdmin, requireAuth } from "./middleware/auth.js";
 import { errorHandler } from "./middleware/error-handler.js";
 import { requestIdMiddleware } from "./middleware/request-id.js";
 import { router } from "./routes/index.js";
@@ -12,19 +11,41 @@ import { getMetricsSnapshot, metricsMiddleware } from "./lib/metrics.js";
 import { prisma } from "./lib/prisma.js";
 import { logger } from "./lib/logger.js";
 
+// Baseline security headers applied to every response.
+const securityHeaders: express.RequestHandler = (_req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Referrer-Policy", "no-referrer");
+  // Harmless over plain HTTP; enforced by browsers only over HTTPS.
+  res.setHeader("Strict-Transport-Security", "max-age=15552000; includeSubDomains");
+  next();
+};
+
 export const createApp = () => {
   const app = express();
+  // Behind a single nginx reverse proxy: trust exactly one hop so req.ip / req.protocol
+  // reflect the real client without honoring arbitrary client-supplied X-Forwarded-For.
+  app.set("trust proxy", 1);
   const uploadRoot = path.resolve(serverConfig.uploadDir);
   void fs.mkdir(uploadRoot, { recursive: true }).catch((err) => {
     logger.error({ err, uploadRoot }, "Failed to ensure upload directory");
   });
+  app.use(securityHeaders);
   app.use(cors({ origin: serverConfig.corsOrigins, credentials: true }));
   app.use(requestIdMiddleware);
   app.use(express.json({ limit: "10mb" }));
   app.use(express.urlencoded({ extended: true }));
   app.use(metricsMiddleware);
   app.use(authenticate);
-  app.use("/uploads", express.static(uploadRoot));
+  app.use(
+    "/uploads",
+    express.static(uploadRoot, {
+      setHeaders: (res) => {
+        // Ensure user-uploaded files are never sniffed into executable types.
+        res.setHeader("X-Content-Type-Options", "nosniff");
+      }
+    })
+  );
   app.get("/healthz", async (_req, res) => {
     try {
       await prisma.$queryRaw`SELECT 1`;
@@ -42,7 +63,8 @@ export const createApp = () => {
       }
     });
   });
-  app.get("/api/metrics", (_req, res) => {
+  // Metrics can reveal traffic patterns and probed paths — restrict to admins.
+  app.get("/api/metrics", requireAuth, requireAdmin, (_req, res) => {
     res.json({ data: getMetricsSnapshot() });
   });
   app.use("/api", router);

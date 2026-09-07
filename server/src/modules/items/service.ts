@@ -23,7 +23,12 @@ export type ListItemsInput = {
   page?: number;
   pageSize?: number;
   includeDonations?: boolean;
+  // Identity of the caller, used to decide whether non-ACTIVE items may be listed.
+  requesterId?: string;
+  requesterRole?: string;
 };
+
+type ItemRequester = { id?: string; role?: string };
 
 export const listItems = async (filters: ListItemsInput) => {
   const { page, pageSize, skip, take } = normalizePagination(filters);
@@ -34,7 +39,20 @@ export const listItems = async (filters: ListItemsInput) => {
   if (filters.categoryId) where.categoryId = filters.categoryId;
   if (filters.sellerId) where.sellerId = filters.sellerId;
   if (filters.condition) where.condition = filters.condition;
-  where.status = filters.status ?? "ACTIVE";
+
+  // Only ACTIVE items are publicly visible. A non-ACTIVE status filter (e.g.
+  // HIDDEN/PENDING_REVIEW/REJECTED) is honored only for an admin, or for a user
+  // querying their own listings (sellerId === requesterId); otherwise it is
+  // ignored and forced back to ACTIVE so moderation/visibility can't be bypassed.
+  const isAdmin = filters.requesterRole === "ADMIN";
+  const viewingOwn = Boolean(
+    filters.sellerId && filters.requesterId && filters.sellerId === filters.requesterId
+  );
+  if (filters.status && (isAdmin || viewingOwn)) {
+    where.status = filters.status;
+  } else {
+    where.status = "ACTIVE";
+  }
   if (filters.q) {
     where.OR = [
       { title: { contains: filters.q } },
@@ -62,7 +80,7 @@ export const listItems = async (filters: ListItemsInput) => {
       take,
       include: {
         category: true,
-        seller: { select: { id: true, email: true, name: true } }
+        seller: { select: { id: true, name: true } }
       }
     }),
     prisma.item.count({ where })
@@ -71,16 +89,25 @@ export const listItems = async (filters: ListItemsInput) => {
   return { items: items.map(withParsedImages), total, page, pageSize };
 };
 
-export const getItemById = async (id: string) => {
+export const getItemById = async (id: string, requester?: ItemRequester) => {
   const item = await prisma.item.findUnique({
     where: { id },
     include: {
       category: true,
-      seller: { select: { id: true, email: true, name: true } }
+      seller: { select: { id: true, name: true } }
     }
   });
   if (!item) throw new NotFoundError("Item not found");
   if (isDonationDescription(item.description)) throw new NotFoundError("Item not found");
+
+  // Non-ACTIVE items (hidden/pending/rejected/etc.) are only visible to the
+  // owner or an admin — otherwise treat as not found so moderation holds.
+  const isOwner = Boolean(requester?.id && item.sellerId === requester.id);
+  const isAdmin = requester?.role === "ADMIN";
+  if (item.status !== "ACTIVE" && !isOwner && !isAdmin) {
+    throw new NotFoundError("Item not found");
+  }
+
   return withParsedImages(item);
 };
 
