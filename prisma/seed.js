@@ -294,7 +294,7 @@ async function main() {
         buyerId: buyer.id,
         sellerId: seller.id,
         status: OrderStatus.ACCEPTED,
-        total: new Prisma.Decimal('158.00')
+        total: 158.0
       }
     });
 
@@ -304,7 +304,7 @@ async function main() {
         buyerId: buyer2.id,
         sellerId: seller.id,
         status: OrderStatus.PENDING,
-        total: new Prisma.Decimal('299.00')
+        total: 299.0
       }
     });
 

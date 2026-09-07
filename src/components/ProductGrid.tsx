@@ -82,10 +82,10 @@ const ProductGrid: React.FC<ProductGridProps> = ({ products, onProductClick }) =
                         const parsed = JSON.parse(product.images);
                         return Array.isArray(parsed) ? parsed[0] : product.images;
                       } catch {
-                        return product.images || 'https://via.placeholder.com/300';
+                        return product.images || '/placeholder.svg';
                       }
                     })()
-                  : (product.images?.[0] || 'https://via.placeholder.com/300')
+                  : (product.images?.[0] || '/placeholder.svg')
               }
               alt={product.title}
               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"

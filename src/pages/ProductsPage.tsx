@@ -56,6 +56,14 @@ const ProductsPage: React.FC<ProductsPageProps> = ({ searchQuery: initialSearch 
   const [page, setPage] = useState(Number(searchParams.get('page')) || 1);
   const pageSize = 12;
 
+  // Keep the search term in sync when the header navigates to /products?q=...
+  // (the component stays mounted, so the initial useState value alone is stale).
+  useEffect(() => {
+    const q = initialSearch ?? searchParams.get('q') ?? '';
+    setSearchQuery((prev) => (prev === q ? prev : q));
+    setPage(1);
+  }, [initialSearch, searchParams]);
+
   // Fetch items from API
   useEffect(() => {
     const fetchItems = async () => {
@@ -121,6 +129,7 @@ const ProductsPage: React.FC<ProductsPageProps> = ({ searchQuery: initialSearch 
                 </label>
                 <input
                   type="number"
+                  min={0}
                   value={minPrice ?? ''}
                   onChange={(e) => {
                     setMinPrice(e.target.value ? Number(e.target.value) : null);
@@ -137,6 +146,7 @@ const ProductsPage: React.FC<ProductsPageProps> = ({ searchQuery: initialSearch 
                 </label>
                 <input
                   type="number"
+                  min={0}
                   value={maxPrice ?? ''}
                   onChange={(e) => {
                     setMaxPrice(e.target.value ? Number(e.target.value) : null);
@@ -161,10 +171,10 @@ const ProductsPage: React.FC<ProductsPageProps> = ({ searchQuery: initialSearch 
                   className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:border-green-500"
                 >
                   <option value="">{lang === 'zh' ? '全部' : 'All'}</option>
-                  <option value="EXCELLENT">{lang === 'zh' ? '全新' : 'Excellent'}</option>
+                  <option value="NEW">{lang === 'zh' ? '全新' : 'New'}</option>
+                  <option value="LIKE_NEW">{lang === 'zh' ? '几乎全新' : 'Like New'}</option>
                   <option value="GOOD">{lang === 'zh' ? '良好' : 'Good'}</option>
                   <option value="FAIR">{lang === 'zh' ? '一般' : 'Fair'}</option>
-                  <option value="POOR">{lang === 'zh' ? '需维修' : 'Needs Repair'}</option>
                 </select>
               </div>
 

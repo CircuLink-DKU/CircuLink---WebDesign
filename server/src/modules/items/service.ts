@@ -2,7 +2,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
 import { normalizePagination } from "../../utils/pagination.js";
 import { ForbiddenError, NotFoundError } from "../../utils/errors.js";
-import { serializeImages, withParsedImages } from "../../utils/images.js";
+import { parseImages, serializeImages, withParsedImages } from "../../utils/images.js";
 import { DONATION_DESCRIPTION_PREFIX, isDonationDescription } from "../donations/utils.js";
 import { assessListingSubmission } from "../reviews/rules.js";
 
@@ -23,7 +23,12 @@ export type ListItemsInput = {
   page?: number;
   pageSize?: number;
   includeDonations?: boolean;
+  // Identity of the caller, used to decide whether non-ACTIVE items may be listed.
+  requesterId?: string;
+  requesterRole?: string;
 };
+
+type ItemRequester = { id?: string; role?: string };
 
 export const listItems = async (filters: ListItemsInput) => {
   const { page, pageSize, skip, take } = normalizePagination(filters);
@@ -34,7 +39,22 @@ export const listItems = async (filters: ListItemsInput) => {
   if (filters.categoryId) where.categoryId = filters.categoryId;
   if (filters.sellerId) where.sellerId = filters.sellerId;
   if (filters.condition) where.condition = filters.condition;
-  where.status = filters.status ?? "ACTIVE";
+
+  // Only ACTIVE items are publicly visible. A non-ACTIVE status filter (e.g.
+  // HIDDEN/PENDING_REVIEW/REJECTED) is honored only for an admin, or for a user
+  // querying their own listings (sellerId === requesterId); otherwise it is
+  // ignored and forced back to ACTIVE so moderation/visibility can't be bypassed.
+  const isAdmin = filters.requesterRole === "ADMIN";
+  const viewingOwn = Boolean(
+    filters.sellerId && filters.requesterId && filters.sellerId === filters.requesterId
+  );
+  if (isAdmin || viewingOwn) {
+    // Privileged view: honor an explicit status filter, and when none is given
+    // return every status so "my listings" can be fetched in one request.
+    if (filters.status) where.status = filters.status;
+  } else {
+    where.status = "ACTIVE";
+  }
   if (filters.q) {
     where.OR = [
       { title: { contains: filters.q } },
@@ -62,7 +82,7 @@ export const listItems = async (filters: ListItemsInput) => {
       take,
       include: {
         category: true,
-        seller: { select: { id: true, email: true, name: true } }
+        seller: { select: { id: true, name: true } }
       }
     }),
     prisma.item.count({ where })
@@ -71,16 +91,25 @@ export const listItems = async (filters: ListItemsInput) => {
   return { items: items.map(withParsedImages), total, page, pageSize };
 };
 
-export const getItemById = async (id: string) => {
+export const getItemById = async (id: string, requester?: ItemRequester) => {
   const item = await prisma.item.findUnique({
     where: { id },
     include: {
       category: true,
-      seller: { select: { id: true, email: true, name: true } }
+      seller: { select: { id: true, name: true } }
     }
   });
   if (!item) throw new NotFoundError("Item not found");
   if (isDonationDescription(item.description)) throw new NotFoundError("Item not found");
+
+  // Non-ACTIVE items (hidden/pending/rejected/etc.) are only visible to the
+  // owner or an admin — otherwise treat as not found so moderation holds.
+  const isOwner = Boolean(requester?.id && item.sellerId === requester.id);
+  const isAdmin = requester?.role === "ADMIN";
+  if (item.status !== "ACTIVE" && !isOwner && !isAdmin) {
+    throw new NotFoundError("Item not found");
+  }
+
   return withParsedImages(item);
 };
 
@@ -178,6 +207,53 @@ export const updateItem = async (id: string, userId: string, data: Partial<Creat
     ...(data.categoryId && { categoryId: data.categoryId }),
     ...(data.images && { images: serializeImages(data.images) })
   };
+
+  // Re-run the listing-review heuristic on edit. Without this, moderation is
+  // trivially bypassed: publish a clean DRAFT, edit in disallowed content, then
+  // flip DRAFT -> ACTIVE and go live having never entered the review queue.
+  const goingLive = data.status === "ACTIVE" || (!data.status && item.status === "ACTIVE");
+  if (hasCoreFieldUpdate || goingLive) {
+    const nextCategoryId = data.categoryId ?? item.categoryId;
+    const category = await prisma.category.findUnique({
+      where: { id: nextCategoryId },
+      select: { id: true, name: true, slug: true }
+    });
+    if (!category) throw new NotFoundError("Category not found");
+
+    const assessment = assessListingSubmission({
+      title: data.title ?? item.title,
+      description: data.description ?? item.description,
+      price: data.price ?? Number(item.price),
+      images: data.images ?? parseImages(item.images),
+      category
+    });
+
+    if (assessment.shouldReview) {
+      updateData.status = "PENDING_REVIEW";
+      return prisma.$transaction(async (tx) => {
+        const saved = await tx.item.update({ where: { id }, data: updateData });
+        const existing = await tx.reviewQueue.findFirst({
+          where: { targetType: "ITEM", targetId: id, status: "PENDING" },
+          select: { id: true }
+        });
+        if (!existing) {
+          await tx.reviewQueue.create({
+            data: {
+              targetType: "ITEM",
+              targetId: id,
+              submissionType: "NEW_LISTING",
+              submittedById: userId,
+              status: "PENDING",
+              riskLevel: assessment.riskLevel,
+              flags: JSON.stringify(assessment.flags),
+              summary: assessment.summary
+            }
+          });
+        }
+        return withParsedImages(saved);
+      });
+    }
+  }
 
   const updated = await prisma.item.update({
     where: { id },

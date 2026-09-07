@@ -286,7 +286,7 @@ export const removeFromFavorites = async (userId: string, itemId: string) => {
 };
 
 // Messages helpers
-export const getMessages = async (userId: string, itemId?: string) => {
+export const getMessages = async (_userId: string, itemId?: string) => {
   try {
     const response = await apiClient.getThreads({ itemId });
     return { data: response.data, error: null };

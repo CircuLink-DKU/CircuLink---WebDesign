@@ -67,7 +67,7 @@ export const listMessages = async (userId: string, threadId: string, page?: numb
 
 export const sendMessage = async (
   userId: string,
-  payload: { threadId?: string; itemId?: string; recipientId?: string; body: string }
+  payload: { threadId?: string; itemId?: string; body: string }
 ) => {
   if (payload.threadId) {
     const thread = await prisma.messageThread.findUnique({ where: { id: payload.threadId } });
@@ -80,10 +80,21 @@ export const sendMessage = async (
   const item = await prisma.item.findUnique({ where: { id: payload.itemId } });
   if (!item) throw new NotFoundError("Item not found");
   if (isDonationDescription(item.description)) throw new NotFoundError("Item not found");
+  // Mirror item visibility: a listing that isn't publicly viewable must not be
+  // reachable by opening a thread on it either (the thread payload embeds the
+  // item's title/price/images, which would leak a draft/hidden listing).
+  if (item.status !== "ACTIVE" && item.sellerId !== userId) {
+    throw new NotFoundError("Item not found");
+  }
 
   const sellerId = item.sellerId;
-  const buyerId = userId === sellerId ? payload.recipientId : userId;
-  if (!buyerId) throw new ForbiddenError("buyerId is required when seller starts the thread");
+  // Only a buyer may start a new conversation about an item (they become the
+  // buyer party). A seller cannot cold-message an arbitrary user — they reply
+  // within an existing thread instead. This closes an unsolicited-message vector.
+  if (userId === sellerId) {
+    throw new ForbiddenError("The seller can only reply within an existing conversation");
+  }
+  const buyerId = userId;
 
   const thread = await prisma.messageThread.upsert({
     where: { itemId_buyerId_sellerId: { itemId: item.id, buyerId, sellerId } },

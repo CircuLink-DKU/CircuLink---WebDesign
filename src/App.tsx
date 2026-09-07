@@ -26,8 +26,10 @@ import OrderDetailPage from './pages/OrderDetailPage';
 import VerifyEmailPage from './pages/VerifyEmailPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
+import NotFoundPage from './pages/NotFoundPage';
 import NewItemModal from './components/NewItemModal';
 import FavoritesModal from './components/FavoritesModal';
+import ErrorBoundary from './components/ErrorBoundary';
 
 const isRestrictedPartnerRole = (role?: string) => role === 'BUY42_PARTNER';
 
@@ -80,6 +82,7 @@ function App() {
           onShowFavorites={handleShowFavorites}
         />
 
+        <ErrorBoundary>
         <Routes>
           <Route path="/" element={<RoleLandingRoute><HomePage /></RoleLandingRoute>} />
           <Route path="/products" element={<MarketplaceRoute><ProductsPage searchQuery={searchQuery} /></MarketplaceRoute>} />
@@ -103,7 +106,9 @@ function App() {
           <Route path="/verify-email" element={<VerifyEmailPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
+          <Route path="*" element={<NotFoundPage />} />
         </Routes>
+        </ErrorBoundary>
 
         <NewItemModal
           isOpen={showNewItemModal}

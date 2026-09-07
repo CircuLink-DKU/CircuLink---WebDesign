@@ -88,7 +88,7 @@ export default function ProductDetailPage() {
     images = item.images || [];
   }
 
-  const currentImage = images[currentImageIndex] || "/placeholder.png";
+  const currentImage = images[currentImageIndex] || "/placeholder.svg";
 
   const handlePrevImage = () => {
     setCurrentImageIndex((prev) => (prev === 0 ? images.length - 1 : prev - 1));

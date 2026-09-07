@@ -36,7 +36,7 @@ const HomePage: React.FC = () => {
         id: item.id,
         title: item.title,
         price: item.price,
-        image: item.images?.[0] || 'https://via.placeholder.com/300',
+        image: item.images?.[0] || '/placeholder.svg',
         condition: item.condition,
         seller: item.seller?.name || item.seller?.email || (lang === 'zh' ? '卖家' : 'Seller')
       })),

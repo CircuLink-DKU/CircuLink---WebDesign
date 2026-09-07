@@ -18,13 +18,15 @@ export const listItemsController = async (req: Request, res: Response) => {
     sort: req.query.sort as SortField | undefined,
     order: req.query.order as SortOrder | undefined,
     page: req.query.page ? Number(req.query.page) : undefined,
-    pageSize: req.query.pageSize ? Number(req.query.pageSize) : undefined
+    pageSize: req.query.pageSize ? Number(req.query.pageSize) : undefined,
+    requesterId: req.user?.id,
+    requesterRole: req.user?.role
   });
   res.json({ data: items, meta: { page, pageSize, total } });
 };
 
 export const getItemController = async (req: Request, res: Response) => {
-  const item = await getItemById(String(req.params.id));
+  const item = await getItemById(String(req.params.id), { id: req.user?.id, role: req.user?.role });
   res.json({ data: item });
 };
 

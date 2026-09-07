@@ -2,11 +2,19 @@ import { z } from "zod";
 
 const conditionEnum = z.enum(["NEW", "LIKE_NEW", "GOOD", "FAIR"]);
 const statusEnum = z.enum(["DRAFT", "PENDING_REVIEW", "ACTIVE", "REJECTED", "SOLD", "ARCHIVED", "HIDDEN"]);
+// On create, a client may only choose between draft and (pending) active — it
+// must not be able to self-assign SOLD/HIDDEN/etc.
+const createStatusEnum = z.enum(["DRAFT", "ACTIVE"]);
+
+// Bounds to stop oversized text/price from bloating rows or breaking the UI.
+const TITLE_MAX = 200;
+const DESCRIPTION_MAX = 5000;
+const PRICE_MAX = 1_000_000;
 
 export const listItemsSchema = z.object({
   query: z.object({
     categoryId: z.string().optional(),
-    q: z.string().optional(),
+    q: z.string().max(200).optional(),
     minPrice: z.coerce.number().optional(),
     maxPrice: z.coerce.number().optional(),
     condition: conditionEnum.optional(),
@@ -29,11 +37,11 @@ export const getItemSchema = z.object({
 
 export const createItemSchema = z.object({
   body: z.object({
-    title: z.string().min(1),
-    description: z.string().min(1),
-    price: z.coerce.number().nonnegative(),
+    title: z.string().min(1).max(TITLE_MAX),
+    description: z.string().min(1).max(DESCRIPTION_MAX),
+    price: z.coerce.number().nonnegative().max(PRICE_MAX),
     condition: conditionEnum,
-    status: statusEnum.default("ACTIVE"),
+    status: createStatusEnum.default("ACTIVE"),
     categoryId: z.string(),
     images: z.array(z.string()).max(6).default([])
   }),
@@ -43,9 +51,9 @@ export const createItemSchema = z.object({
 
 export const updateItemSchema = z.object({
   body: z.object({
-    title: z.string().min(1).optional(),
-    description: z.string().min(1).optional(),
-    price: z.coerce.number().nonnegative().optional(),
+    title: z.string().min(1).max(TITLE_MAX).optional(),
+    description: z.string().min(1).max(DESCRIPTION_MAX).optional(),
+    price: z.coerce.number().nonnegative().max(PRICE_MAX).optional(),
     condition: conditionEnum.optional(),
     status: statusEnum.optional(),
     categoryId: z.string().optional(),

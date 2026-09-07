@@ -153,13 +153,14 @@ brew services start postgresql@18
 git clone https://github.com/CircuLink-DKU/CircuLink---WebDesign.git
 cd CircuLink---WebDesign
 
-# 2. Install dependencies
-pnpm install
+# 2. Install dependencies (repo is npm-based — package-lock.json)
+npm install
 
 # 3. Set up environment variables
 cp .env.example .env
-# Edit .env — set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY
-# open .env in a text editor and set your database username (usually your Mac username): DATABASE_URL=postgresql://YOUR_USERNAME@localhost:5432/circulink
+# Edit .env — set DATABASE_URL and the JWT secrets.
+# Set your database username (usually your Mac username):
+#   DATABASE_URL=postgresql://YOUR_USERNAME@localhost:5432/circulink
 
 #Example (env):
 DATABASE_URL=postgresql://yt@localhost:5432/circulink

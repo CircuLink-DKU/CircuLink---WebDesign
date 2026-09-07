@@ -104,7 +104,12 @@ export const decideReview = async (
   const review = await prisma.reviewQueue.findUnique({ where: { id } });
   if (!review) throw new NotFoundError("Review not found");
   assertCanReviewTarget(user, review.targetType);
-  if (review.status !== "PENDING") throw new ForbiddenError("Review has already been decided");
+  // A queue entry can be acted on while it is still PENDING, or again after a
+  // previous REQUEST_CHANGES (NEEDS_CHANGES) once the submitter has revised it —
+  // otherwise "request changes" would permanently lock the entry.
+  if (review.status !== "PENDING" && review.status !== "NEEDS_CHANGES") {
+    throw new ForbiddenError("Review has already been decided");
+  }
 
   const nextReviewStatus =
     decision === "APPROVE"
@@ -114,12 +119,19 @@ export const decideReview = async (
         : decision === "HIDE"
           ? "HIDDEN"
           : "REJECTED";
+  // REQUEST_CHANGES must NOT reject the listing; it returns it to an editable
+  // state so the submitter can fix and resubmit (DRAFT for items, back to
+  // PENDING_REVIEW for donations, which have no DRAFT state).
   const nextTargetStatus =
     decision === "APPROVE"
       ? "ACTIVE"
       : decision === "HIDE"
         ? "HIDDEN"
-        : "REJECTED";
+        : decision === "REQUEST_CHANGES"
+          ? review.targetType === "ITEM"
+            ? "DRAFT"
+            : "PENDING_REVIEW"
+          : "REJECTED";
 
   return prisma.$transaction(async (tx) => {
     if (review.targetType === "ITEM") {

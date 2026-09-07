@@ -91,7 +91,7 @@ const CartPage: React.FC = () => {
             {cartItems.map((favorite) => (
               <div key={favorite.id} className="relative rounded-lg bg-white/60 shadow-md p-6 border border-gray-100 flex items-center">
                 <img
-                  src={favorite.item.images?.[0] || 'https://via.placeholder.com/160x120?text=No+Image'}
+                  src={favorite.item.images?.[0] || '/placeholder.svg'}
                   alt={favorite.item.title}
                   className="w-28 h-20 object-cover rounded-md mr-6"
                 />

@@ -112,13 +112,19 @@ const FavoritesModal: React.FC<FavoritesModalProps> = ({ isOpen, onClose }) => {
                 const item = favorite.item;
                 if (!item) return null;
 
-                // Parse images
-                let imageUrl = 'https://via.placeholder.com/300';
-                try {
-                  const images = typeof item.images === 'string' ? JSON.parse(item.images) : item.images;
-                  imageUrl = Array.isArray(images) ? images[0] : imageUrl;
-                } catch {
-                  imageUrl = item.images || imageUrl;
+                // item.images is normally a string[]; tolerate a legacy JSON string too.
+                const PLACEHOLDER = '/placeholder.svg';
+                let imageUrl = PLACEHOLDER;
+                const rawImages: unknown = item.images;
+                if (Array.isArray(rawImages)) {
+                  imageUrl = rawImages[0] || PLACEHOLDER;
+                } else if (typeof rawImages === 'string' && rawImages) {
+                  try {
+                    const parsed = JSON.parse(rawImages);
+                    imageUrl = Array.isArray(parsed) ? parsed[0] || PLACEHOLDER : rawImages;
+                  } catch {
+                    imageUrl = rawImages;
+                  }
                 }
 
                 return (
@@ -155,7 +161,7 @@ const FavoritesModal: React.FC<FavoritesModalProps> = ({ isOpen, onClose }) => {
                       </h3>
                       <div className="flex items-center justify-between">
                         <span className="text-xl font-bold text-gray-900">
-                          ${typeof item.price === 'number' ? item.price.toFixed(2) : item.price}
+                          ${Number(item.price).toFixed(2)}
                         </span>
                         <span className="text-sm text-gray-500">{item.condition}</span>
                       </div>

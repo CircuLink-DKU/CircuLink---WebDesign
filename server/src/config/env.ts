@@ -37,6 +37,14 @@ const envSchema = z.object({
   JWT_REFRESH_TTL: z.string().default("7d"),
   BCRYPT_ROUNDS: z.string().default("10"),
   CORS_ORIGIN: z.string().optional(),
+  // Optional comma-separated allowlist of email domains permitted to register
+  // (e.g. "dukekunshan.edu.cn,duke.edu"). Empty = open registration.
+  ALLOWED_EMAIL_DOMAINS: z.string().optional(),
+  // Explicit opt-in to return raw verification/password-reset tokens in API
+  // responses (local development and tests only). This MUST fail closed: keying
+  // it off "NODE_ENV !== production" would turn a forgotten NODE_ENV into an
+  // unauthenticated account-takeover primitive.
+  EXPOSE_DEV_TOKENS: z.string().optional(),
   UPLOAD_DIR: z.string().default("uploads"),
   OPENAI_API_KEY: z.string().optional(),
   OPENAI_BASE_URL: z.string().default("https://api.openai.com/v1"),
@@ -70,7 +78,14 @@ export const env = {
 export const serverConfig = {
   port: parseInt(env.PORT, 10) || 4000,
   corsOrigins: env.CORS_ORIGIN?.split(",").map((origin) => origin.trim()).filter(Boolean) ?? ["*"],
-  uploadDir: env.UPLOAD_DIR
+  uploadDir: env.UPLOAD_DIR,
+  // Lower-cased set of allowed registration email domains; empty ⇒ open.
+  allowedEmailDomains:
+    env.ALLOWED_EMAIL_DOMAINS?.split(",")
+      .map((d) => d.trim().toLowerCase())
+      .filter(Boolean) ?? [],
+  // Fail closed: only an explicit "true" exposes reset/verification tokens.
+  exposeDevTokens: env.EXPOSE_DEV_TOKENS?.trim().toLowerCase() === "true"
 };
 
 export const authConfig = {

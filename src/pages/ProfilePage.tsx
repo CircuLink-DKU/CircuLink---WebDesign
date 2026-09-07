@@ -271,11 +271,15 @@ const ProfilePage: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      await updateBackendProfile(profile!.id, {
+      // updateBackendProfile resolves with { data, error } instead of throwing,
+      // so a failed save must be detected explicitly — otherwise it looks like a
+      // success while the edits silently revert on refresh.
+      const { error: saveError } = await updateBackendProfile(profile!.id, {
         full_name: editForm.name,
         phone: editForm.phone,
         university: editForm.university,
       });
+      if (saveError) throw saveError;
       await refreshProfile();
       setIsEditing(false);
     } catch (err) {
@@ -359,7 +363,7 @@ const ProfilePage: React.FC = () => {
           <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
             <div className="flex flex-col items-center gap-5 text-center md:flex-row md:text-left">
               <img
-                src={profile?.avatar_url || `https://ui-avatars.com/api/?name=${encodeURIComponent(profile?.full_name || 'User')}&background=F97316&color=fff&size=128`}
+                src={profile?.avatar_url || '/placeholder.svg'}
                 alt={profile?.full_name}
                 className="h-24 w-24 rounded-full border-4 border-white shadow-[0_16px_40px_rgba(14,72,63,0.16)] sm:h-28 sm:w-28"
               />
@@ -586,7 +590,7 @@ const ProfilePage: React.FC = () => {
                           </button>
                         ) : null}
                         <img
-                          src={item.images?.[0] || 'https://via.placeholder.com/300x200?text=No+Image'}
+                          src={item.images?.[0] || '/placeholder.svg'}
                           alt={item.title}
                           className="h-48 w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
                         />
@@ -639,7 +643,7 @@ const ProfilePage: React.FC = () => {
                         onClick={() => navigate(`/product/${favorite.item.id}`)}
                       >
                         <img
-                          src={favorite.item.images?.[0] || 'https://via.placeholder.com/300x200?text=No+Image'}
+                          src={favorite.item.images?.[0] || '/placeholder.svg'}
                           alt={favorite.item.title}
                           className="h-48 w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
                         />

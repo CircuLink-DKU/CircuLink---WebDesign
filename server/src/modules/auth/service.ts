@@ -3,8 +3,8 @@ import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
-import { AuthError, ConflictError, NotFoundError } from "../../utils/errors.js";
-import { authConfig, env } from "../../config/env.js";
+import { AuthError, BadRequestError, ConflictError, NotFoundError } from "../../utils/errors.js";
+import { authConfig, env, serverConfig } from "../../config/env.js";
 import { sendPasswordResetEmail, sendVerificationEmail } from "../../lib/mailer.js";
 import { logger } from "../../lib/logger.js";
 
@@ -89,6 +89,15 @@ const createEmailVerificationTokenRecord = async (userId: string) => {
 };
 
 export const registerUser = async (payload: { email: string; password: string; name?: string }) => {
+  // Optional community gate: when ALLOWED_EMAIL_DOMAINS is configured, only those
+  // domains may register (e.g. DKU accounts). Empty ⇒ open registration.
+  if (serverConfig.allowedEmailDomains.length > 0) {
+    const domain = payload.email.split("@")[1]?.toLowerCase();
+    if (!domain || !serverConfig.allowedEmailDomains.includes(domain)) {
+      throw new BadRequestError("Registration is restricted to approved email domains");
+    }
+  }
+
   const existing = await prisma.user.findUnique({ where: { email: payload.email } });
   if (existing) throw new ConflictError("Email already in use");
 
@@ -191,8 +200,10 @@ export const requestEmailVerification = async (email: string) => {
   const { token, expiresAt } = await createEmailVerificationTokenRecord(user.id);
   await sendVerificationEmail(user.email, token);
 
-  // 生产环境不回传原始 token，避免绕过邮件直接拿到验证凭证；开发环境保留方便本地联调。
-  return env.NODE_ENV === "production" ? { expiresAt } : { token, expiresAt };
+  // Never echo the raw token unless explicitly opted in (EXPOSE_DEV_TOKENS=true).
+  // This fails closed: a deployment that forgets NODE_ENV=production must not
+  // hand out verification credentials over the API.
+  return serverConfig.exposeDevTokens ? { token, expiresAt } : { expiresAt };
 };
 
 export const verifyEmailToken = async (token: string) => {
@@ -234,7 +245,10 @@ export const requestPasswordReset = async (email: string) => {
 
   await sendPasswordResetEmail(user.email, token);
 
-  return env.NODE_ENV === "production" ? {} : { token, expiresAt };
+  // Never echo the raw token unless explicitly opted in. This must fail CLOSED:
+  // gating on `NODE_ENV !== "production"` would turn a deployment that forgot to
+  // set NODE_ENV into an unauthenticated account-takeover primitive.
+  return serverConfig.exposeDevTokens ? { token, expiresAt } : {};
 };
 
 export const resetPassword = async (token: string, password: string) => {

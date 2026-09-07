@@ -11,7 +11,13 @@ node_modules
 dist
 dist-ssr
 .env
-uploads/
+# Runtime upload directory only (repo root). Anchored with a leading slash so it
+# does NOT also match the source module server/src/modules/uploads/.
+/uploads/
+
+# Local SQLite dev databases (never commit — may contain credentials/PII)
+*.db
+*.db-journal
 
 
 # Editor directories and files

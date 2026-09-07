@@ -257,9 +257,36 @@ interface LanguageContextValue {
 
 const LanguageContext = createContext<LanguageContextValue | undefined>(undefined);
 
+const LANG_STORAGE_KEY = 'circulink.lang';
+
+const readInitialLang = (): Lang => {
+  try {
+    const stored = localStorage.getItem(LANG_STORAGE_KEY);
+    if (stored === 'en' || stored === 'zh') return stored;
+    // First visit: honor the browser's preference (Chinese users default to zh).
+    if (typeof navigator !== 'undefined' && navigator.language?.toLowerCase().startsWith('zh')) {
+      return 'zh';
+    }
+  } catch {
+    // localStorage may be unavailable (private mode) — fall back to default.
+  }
+  return 'en';
+};
+
 export const LanguageProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [lang, setLang] = useState<Lang>('en');
-  const toggleLang = () => setLang((l) => (l === 'en' ? 'zh' : 'en'));
+  const [lang, setLang] = useState<Lang>(readInitialLang);
+
+  const toggleLang = () =>
+    setLang((l) => {
+      const next = l === 'en' ? 'zh' : 'en';
+      try {
+        localStorage.setItem(LANG_STORAGE_KEY, next);
+      } catch {
+        // Ignore persistence failures.
+      }
+      return next;
+    });
+
   const t = (key: string) => translations[lang]?.[key] ?? key;
 
   return (

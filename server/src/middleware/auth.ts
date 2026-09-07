@@ -12,6 +12,12 @@ export type AuthUser = {
 export const USER_ROLES = ["USER", "ADMIN", "CLUB_OPERATOR", "BUY42_PARTNER"] as const;
 export type UserRole = (typeof USER_ROLES)[number];
 
+/**
+ * Optional authentication: attaches req.user when a valid Bearer token is
+ * present. An invalid or expired token is treated as "anonymous" rather than an
+ * error, so public routes (item browsing, /healthz) keep working while a client's
+ * access token is expired; protected routes still reject via requireAuth.
+ */
 export const authenticate: RequestHandler = (req, _res, next) => {
   const header = req.headers.authorization;
   if (!header?.startsWith("Bearer ")) {
@@ -19,10 +25,9 @@ export const authenticate: RequestHandler = (req, _res, next) => {
   }
   const token = header.slice(7);
   try {
-    const payload = jwt.verify(token, env.JWT_SECRET) as AuthUser;
-    req.user = payload;
+    req.user = jwt.verify(token, env.JWT_SECRET) as AuthUser;
   } catch {
-    return next(new AuthError("Invalid token"));
+    // Leave req.user unset — requireAuth turns this into a 401 where it matters.
   }
   return next();
 };

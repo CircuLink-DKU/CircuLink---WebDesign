@@ -12,10 +12,12 @@ export const listMessagesSchema = z.object({
 });
 
 export const sendMessageSchema = z.object({
+  // NOTE: there is deliberately no `recipientId` here. The counterparty is always
+  // derived from the item's seller, so accepting one would be API surface that
+  // validates nothing (unknown keys are stripped by zod).
   body: z.object({
     threadId: z.string().optional(),
     itemId: z.string().optional(),
-    recipientId: z.string().optional(),
     body: z.string().min(1).max(2000)
   }).superRefine((data, ctx) => {
     if (!data.threadId && !data.itemId) {
