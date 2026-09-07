@@ -43,6 +43,7 @@ const Header: React.FC<HeaderProps> = ({ onSearch, onNewItem, onShowFavorites })
     donation: lang === 'zh' ? '捐赠' : 'Donation',
     donationAdmin: lang === 'zh' ? '捐赠管理' : 'Donation Admin',
     reviewQueue: lang === 'zh' ? '审核队列' : 'Review Queue',
+    userManagement: lang === 'zh' ? '用户权限' : 'User Roles',
     profile: lang === 'zh' ? '个人资料' : 'Profile',
     about: lang === 'zh' ? '关于' : 'About'
   };
@@ -50,6 +51,7 @@ const Header: React.FC<HeaderProps> = ({ onSearch, onNewItem, onShowFavorites })
   const isRestrictedPartnerRole = user?.role === 'BUY42_PARTNER';
   const canUseMarketplace = !isRestrictedPartnerRole;
   const canManageDonations = user?.role === 'ADMIN' || user?.role === 'CLUB_OPERATOR';
+  const isAdmin = user?.role === 'ADMIN';
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -264,6 +266,11 @@ const Header: React.FC<HeaderProps> = ({ onSearch, onNewItem, onShowFavorites })
                 {text.reviewQueue}
               </button>
             )}
+            {isAdmin && (
+              <button onClick={() => navigate('/admin/users')} className="hover:text-white">
+                {text.userManagement}
+              </button>
+            )}
             {canUseMarketplace && (
               <>
                 <button
@@ -397,6 +404,18 @@ const Header: React.FC<HeaderProps> = ({ onSearch, onNewItem, onShowFavorites })
                     >
                       <ShieldAlert className="h-5 w-5" />
                       <span>{text.reviewQueue}</span>
+                    </button>
+                  )}
+                  {isAdmin && (
+                    <button
+                      onClick={() => {
+                        navigate('/admin/users');
+                        setMobileMenuOpen(false);
+                      }}
+                      className="flex items-center justify-center space-x-2 text-[#e6f1e2]"
+                    >
+                      <ShieldAlert className="h-5 w-5" />
+                      <span>{text.userManagement}</span>
                     </button>
                   )}
                   <button
