@@ -3,8 +3,8 @@ import jwt from "jsonwebtoken";
 import crypto from "crypto";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
-import { AuthError, ConflictError, NotFoundError } from "../../utils/errors.js";
-import { authConfig, env } from "../../config/env.js";
+import { AuthError, BadRequestError, ConflictError, NotFoundError } from "../../utils/errors.js";
+import { authConfig, env, serverConfig } from "../../config/env.js";
 import { sendPasswordResetEmail, sendVerificationEmail } from "../../lib/mailer.js";
 import { logger } from "../../lib/logger.js";
 
@@ -83,6 +83,15 @@ const createEmailVerificationTokenRecord = async (userId: string) => {
 };
 
 export const registerUser = async (payload: { email: string; password: string; name?: string }) => {
+  // Optional community gate: when ALLOWED_EMAIL_DOMAINS is configured, only those
+  // domains may register (e.g. DKU accounts). Empty ⇒ open registration.
+  if (serverConfig.allowedEmailDomains.length > 0) {
+    const domain = payload.email.split("@")[1]?.toLowerCase();
+    if (!domain || !serverConfig.allowedEmailDomains.includes(domain)) {
+      throw new BadRequestError("Registration is restricted to approved email domains");
+    }
+  }
+
   const existing = await prisma.user.findUnique({ where: { email: payload.email } });
   if (existing) throw new ConflictError("Email already in use");
 
@@ -207,12 +216,17 @@ export const verifyEmailToken = async (token: string) => {
 };
 
 export const requestPasswordReset = async (email: string) => {
+  const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
   const user = await prisma.user.findUnique({ where: { email } });
-  if (!user) throw new NotFoundError("User not found");
+
+  // Always return the same shape regardless of whether the email exists, so this
+  // endpoint can't be used to enumerate registered accounts. Only actually issue
+  // a token + send mail when the user exists.
+  if (!user) {
+    return { expiresAt };
+  }
 
   const token = crypto.randomBytes(32).toString("hex");
-  const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
-
   await prisma.passwordResetToken.create({
     data: { userId: user.id, token, expiresAt }
   });

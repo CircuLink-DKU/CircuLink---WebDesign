@@ -1,65 +1,68 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Send, Heart, ShoppingCart, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Send, Heart } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
-
-interface RecommendedItem {
-  id: string;
-  titleEn: string;
-  titleZh: string;
-  price: string;
-  image: string;
-  isFavorite?: boolean;
-  inCart?: boolean;
-}
+import { apiClient, Item, ApiError } from '../lib/api';
+import { useAuth } from '../hooks/useAuth';
 
 const AIRecommendationPage: React.FC = () => {
   const navigate = useNavigate();
   const { t, lang } = useLanguage();
+  const { isAuthenticated } = useAuth();
   const [userQuery, setUserQuery] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [recommendations, setRecommendations] = useState<RecommendedItem[]>([
-    {
-      id: '1',
-      titleEn: 'Sample Product 1',
-      titleZh: '示例商品 1',
-      price: '$25.00',
-      image: '/placeholder.jpg',
-      isFavorite: false,
-      inCart: false
-    },
-    {
-      id: '2',
-      titleEn: 'Sample Product 2',
-      titleZh: '示例商品 2',
-      price: '$45.00',
-      image: '/placeholder.jpg',
-      isFavorite: false,
-      inCart: false
+  const [error, setError] = useState<string | null>(null);
+  const [results, setResults] = useState<Item[]>([]);
+  const [favoritedIds, setFavoritedIds] = useState<Record<string, boolean>>({});
+
+  // Keyword-based assist over real inventory (the backend item search).
+  const runSearch = useCallback(async (query?: string) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await apiClient.getItems({
+        q: query?.trim() || undefined,
+        pageSize: 6,
+      });
+      setResults(response.data || []);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : lang === 'zh' ? '加载推荐失败' : 'Failed to load recommendations'
+      );
+      setResults([]);
+    } finally {
+      setIsLoading(false);
     }
-  ]);
+  }, [lang]);
+
+  // Seed the panel with recent listings on first load.
+  useEffect(() => {
+    runSearch();
+  }, [runSearch]);
 
   const handleSendQuery = async () => {
     if (!userQuery.trim()) return;
-
-    setIsLoading(true);
-    // TODO: 集成实际的AI推荐API
-    setTimeout(() => {
-      setIsLoading(false);
-      // 这里会从API获取推荐结果
-    }, 1000);
+    await runSearch(userQuery);
   };
 
-  const toggleFavorite = (id: string) => {
-    setRecommendations(recommendations.map(item =>
-      item.id === id ? { ...item, isFavorite: !item.isFavorite } : item
-    ));
-  };
-
-  const toggleCart = (id: string) => {
-    setRecommendations(recommendations.map(item =>
-      item.id === id ? { ...item, inCart: !item.inCart } : item
-    ));
+  const handleFavorite = async (itemId: string) => {
+    if (!isAuthenticated) {
+      setError(lang === 'zh' ? '请先登录以收藏商品' : 'Please sign in to save items');
+      return;
+    }
+    try {
+      await apiClient.addFavorite(itemId);
+      setFavoritedIds((prev) => ({ ...prev, [itemId]: true }));
+    } catch (err) {
+      // A 409 just means it's already in favorites — treat as success.
+      if (err instanceof ApiError && err.status === 409) {
+        setFavoritedIds((prev) => ({ ...prev, [itemId]: true }));
+        return;
+      }
+      setError(err instanceof Error ? err.message : (lang === 'zh' ? '收藏失败' : 'Failed to save item'));
+    }
   };
 
   return (
@@ -79,16 +82,12 @@ const AIRecommendationPage: React.FC = () => {
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 py-8">
-        {/* Title */}
         <div className="mb-8 text-center">
           <div className="inline-block bg-white rounded-2xl shadow-md px-8 py-4 border-2 border-emerald-200">
-            <h1 className="text-2xl font-bold text-emerald-900">
-              {t('tellUsYourNeeds')}
-            </h1>
+            <h1 className="text-2xl font-bold text-emerald-900">{t('tellUsYourNeeds')}</h1>
           </div>
         </div>
 
-        {/* Two Column Layout */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
           {/* Left: Query Input */}
           <div className="bg-white rounded-2xl shadow-lg p-4 sm:p-6 border-2 border-emerald-100">
@@ -98,7 +97,13 @@ const AIRecommendationPage: React.FC = () => {
             <textarea
               value={userQuery}
               onChange={(e) => setUserQuery(e.target.value)}
-              placeholder={lang === 'zh' ? '例如：我是新生，想找便宜电子产品，预算 x 到 y。' : "(e.g., I'm a freshman looking for cheap electronics, and the preferred price is from x to y.)"}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                  e.preventDefault();
+                  handleSendQuery();
+                }
+              }}
+              placeholder={lang === 'zh' ? '例如:想找便宜的电子产品或书籍。' : "(e.g., I'm looking for cheap electronics or books.)"}
               className="w-full h-40 sm:h-64 p-4 border-2 border-emerald-200 rounded-lg resize-none focus:outline-none focus:border-emerald-500 text-gray-700 placeholder:text-gray-400"
             />
             <div className="mt-4 flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
@@ -110,7 +115,7 @@ const AIRecommendationPage: React.FC = () => {
                 {isLoading ? (
                   <>
                     <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
-                    {lang === 'zh' ? '处理中...' : 'Processing...'}
+                    {lang === 'zh' ? '搜索中...' : 'Searching...'}
                   </>
                 ) : (
                   <>
@@ -122,77 +127,64 @@ const AIRecommendationPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Right: Recommendation Panel */}
+          {/* Right: Results Panel */}
           <div className="bg-white rounded-2xl shadow-lg p-4 sm:p-6 border-2 border-emerald-100">
             <h2 className="text-lg sm:text-xl font-bold text-emerald-900 mb-4 sm:mb-6 text-center">
-              {lang === 'zh' ? '推荐面板' : 'Recommendation Panel'}
+              {lang === 'zh' ? '推荐结果' : 'Recommendations'}
             </h2>
-            
-            {/* Recommendation Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-2 gap-3 sm:gap-4 mb-4">
-              {recommendations.map((item) => (
-                <div
-                  key={item.id}
-                  className="bg-gradient-to-br from-emerald-50 to-cyan-50 rounded-xl p-4 border-2 border-emerald-200 shadow-sm hover:shadow-md transition-shadow"
-                >
-                  {/* Product Image Placeholder */}
-                  <div className="w-full aspect-square bg-gray-200 rounded-lg mb-3 flex items-center justify-center">
-                    <div className="text-gray-400 text-xs">{lang === 'zh' ? '图片' : 'Image'}</div>
-                  </div>
 
-                  {/* Icons */}
-                  <div className="flex justify-end gap-2 mb-2">
-                    <button
-                      onClick={() => toggleFavorite(item.id)}
-                      className="p-1.5 rounded-full hover:bg-white transition-colors"
-                    >
-                      <Heart
-                        className={`h-4 w-4 ${
-                          item.isFavorite
-                            ? 'fill-red-500 text-red-500'
-                            : 'text-emerald-600'
-                        }`}
-                      />
-                    </button>
-                    <button
-                      onClick={() => toggleCart(item.id)}
-                      className="p-1.5 rounded-full hover:bg-white transition-colors"
-                    >
-                      <ShoppingCart
-                        className={`h-4 w-4 ${
-                          item.inCart
-                            ? 'fill-emerald-600 text-emerald-600'
-                            : 'text-yellow-500'
-                        }`}
-                      />
-                    </button>
-                  </div>
+            {error && <p className="mb-4 text-sm text-rose-600 text-center">{error}</p>}
 
-                  {/* Product Info */}
-                  <div className="space-y-1 mb-3">
-                    <div className="text-sm font-semibold text-gray-600">{lang === 'zh' ? '标题' : 'Title'}</div>
-                    <div className="text-xs text-gray-500 truncate">{lang === 'zh' ? item.titleZh : item.titleEn}</div>
-                    <div className="text-sm font-semibold text-gray-600 mt-2">{lang === 'zh' ? '价格' : 'Price'}</div>
-                    <div className="text-xs text-gray-500">{item.price}</div>
-                  </div>
-
-                  {/* View Item Button */}
-                  <button
-                    onClick={() => navigate(`/product/${item.id}`)}
-                    className="w-full py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 transition-colors"
+            {isLoading ? (
+              <div className="flex justify-center py-10">
+                <div className="animate-spin h-8 w-8 border-2 border-emerald-500 border-t-transparent rounded-full" />
+              </div>
+            ) : results.length === 0 ? (
+              <p className="py-10 text-center text-sm text-gray-500">
+                {lang === 'zh' ? '暂无匹配的商品' : 'No matching items yet'}
+              </p>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-2 gap-3 sm:gap-4">
+                {results.map((item) => (
+                  <div
+                    key={item.id}
+                    className="bg-gradient-to-br from-emerald-50 to-cyan-50 rounded-xl p-4 border-2 border-emerald-200 shadow-sm hover:shadow-md transition-shadow"
                   >
-                    {lang === 'zh' ? '查看商品' : 'View Item'}
-                  </button>
-                </div>
-              ))}
-            </div>
+                    <div className="w-full aspect-square rounded-lg mb-3 overflow-hidden bg-gray-100">
+                      <img
+                        src={item.images?.[0] || '/placeholder.svg'}
+                        alt={item.title}
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
 
-            {/* Navigation Arrow */}
-            <div className="flex justify-end">
-              <button className="p-2 rounded-full bg-emerald-100 hover:bg-emerald-200 transition-colors">
-                <ChevronRight className="h-6 w-6 text-emerald-700" />
-              </button>
-            </div>
+                    <div className="flex justify-end mb-2">
+                      <button
+                        onClick={() => handleFavorite(item.id)}
+                        className="p-1.5 rounded-full hover:bg-white transition-colors"
+                        aria-label={lang === 'zh' ? '收藏' : 'Save'}
+                      >
+                        <Heart
+                          className={`h-4 w-4 ${favoritedIds[item.id] ? 'fill-red-500 text-red-500' : 'text-emerald-600'}`}
+                        />
+                      </button>
+                    </div>
+
+                    <div className="space-y-1 mb-3">
+                      <div className="text-sm font-semibold text-gray-700 truncate">{item.title}</div>
+                      <div className="text-sm font-bold text-emerald-800">${Number(item.price).toFixed(2)}</div>
+                    </div>
+
+                    <button
+                      onClick={() => navigate(`/product/${item.id}`)}
+                      className="w-full py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 transition-colors"
+                    >
+                      {lang === 'zh' ? '查看商品' : 'View Item'}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>

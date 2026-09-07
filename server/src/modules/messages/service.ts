@@ -82,8 +82,13 @@ export const sendMessage = async (
   if (isDonationDescription(item.description)) throw new NotFoundError("Item not found");
 
   const sellerId = item.sellerId;
-  const buyerId = userId === sellerId ? payload.recipientId : userId;
-  if (!buyerId) throw new ForbiddenError("buyerId is required when seller starts the thread");
+  // Only a buyer may start a new conversation about an item (they become the
+  // buyer party). A seller cannot cold-message an arbitrary user — they reply
+  // within an existing thread instead. This closes an unsolicited-message vector.
+  if (userId === sellerId) {
+    throw new ForbiddenError("The seller can only reply within an existing conversation");
+  }
+  const buyerId = userId;
 
   const thread = await prisma.messageThread.upsert({
     where: { itemId_buyerId_sellerId: { itemId: item.id, buyerId, sellerId } },
