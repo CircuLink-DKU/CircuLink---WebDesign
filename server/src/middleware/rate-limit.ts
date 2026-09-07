@@ -34,8 +34,17 @@ const getClientKey = (req: Parameters<RequestHandler>[0]) => {
 
 const nowMs = () => Date.now();
 
+// Integration tests drive hundreds of auth writes from a single loopback address,
+// which would exhaust an IP-keyed bucket and make the suite order/timing
+// dependent. Opt out explicitly (never keyed off NODE_ENV alone).
+const rateLimitDisabled = process.env.DISABLE_RATE_LIMIT?.trim().toLowerCase() === "true";
+
 export const rateLimit = (options: RateLimitOptions): RequestHandler => {
   const { windowMs, max, scope } = options;
+
+  if (rateLimitDisabled) {
+    return (_req, _res, next) => next();
+  }
 
   return (req, res, next) => {
     const now = nowMs();

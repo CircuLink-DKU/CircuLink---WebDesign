@@ -194,8 +194,10 @@ export const requestEmailVerification = async (email: string) => {
   const { token, expiresAt } = await createEmailVerificationTokenRecord(user.id);
   await sendVerificationEmail(user.email, token);
 
-  // 生产环境不回传原始 token，避免绕过邮件直接拿到验证凭证；开发环境保留方便本地联调。
-  return env.NODE_ENV === "production" ? { expiresAt } : { token, expiresAt };
+  // Never echo the raw token unless explicitly opted in (EXPOSE_DEV_TOKENS=true).
+  // This fails closed: a deployment that forgets NODE_ENV=production must not
+  // hand out verification credentials over the API.
+  return serverConfig.exposeDevTokens ? { token, expiresAt } : { expiresAt };
 };
 
 export const verifyEmailToken = async (token: string) => {
@@ -233,7 +235,8 @@ export const requestPasswordReset = async (email: string) => {
 
   await sendPasswordResetEmail(user.email, token);
 
-  return env.NODE_ENV === "production" ? { expiresAt } : { token, expiresAt };
+  // Same fail-closed rule as email verification — see requestEmailVerification.
+  return serverConfig.exposeDevTokens ? { token, expiresAt } : { expiresAt };
 };
 
 export const resetPassword = async (token: string, password: string) => {

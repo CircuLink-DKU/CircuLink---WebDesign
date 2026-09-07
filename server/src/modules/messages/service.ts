@@ -67,7 +67,7 @@ export const listMessages = async (userId: string, threadId: string, page?: numb
 
 export const sendMessage = async (
   userId: string,
-  payload: { threadId?: string; itemId?: string; recipientId?: string; body: string }
+  payload: { threadId?: string; itemId?: string; body: string }
 ) => {
   if (payload.threadId) {
     const thread = await prisma.messageThread.findUnique({ where: { id: payload.threadId } });
@@ -80,6 +80,12 @@ export const sendMessage = async (
   const item = await prisma.item.findUnique({ where: { id: payload.itemId } });
   if (!item) throw new NotFoundError("Item not found");
   if (isDonationDescription(item.description)) throw new NotFoundError("Item not found");
+  // Mirror item visibility: a listing that isn't publicly viewable must not be
+  // reachable by opening a thread on it either (the thread payload embeds the
+  // item's title/price/images, which would leak a draft/hidden listing).
+  if (item.status !== "ACTIVE" && item.sellerId !== userId) {
+    throw new NotFoundError("Item not found");
+  }
 
   const sellerId = item.sellerId;
   // Only a buyer may start a new conversation about an item (they become the

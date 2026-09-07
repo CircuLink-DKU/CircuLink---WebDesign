@@ -2,7 +2,7 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../../lib/prisma.js";
 import { normalizePagination } from "../../utils/pagination.js";
 import { ForbiddenError, NotFoundError } from "../../utils/errors.js";
-import { serializeImages, withParsedImages } from "../../utils/images.js";
+import { parseImages, serializeImages, withParsedImages } from "../../utils/images.js";
 import { DONATION_DESCRIPTION_PREFIX, isDonationDescription } from "../donations/utils.js";
 import { assessListingSubmission } from "../reviews/rules.js";
 
@@ -48,8 +48,10 @@ export const listItems = async (filters: ListItemsInput) => {
   const viewingOwn = Boolean(
     filters.sellerId && filters.requesterId && filters.sellerId === filters.requesterId
   );
-  if (filters.status && (isAdmin || viewingOwn)) {
-    where.status = filters.status;
+  if (isAdmin || viewingOwn) {
+    // Privileged view: honor an explicit status filter, and when none is given
+    // return every status so "my listings" can be fetched in one request.
+    if (filters.status) where.status = filters.status;
   } else {
     where.status = "ACTIVE";
   }
@@ -205,6 +207,53 @@ export const updateItem = async (id: string, userId: string, data: Partial<Creat
     ...(data.categoryId && { categoryId: data.categoryId }),
     ...(data.images && { images: serializeImages(data.images) })
   };
+
+  // Re-run the listing-review heuristic on edit. Without this, moderation is
+  // trivially bypassed: publish a clean DRAFT, edit in disallowed content, then
+  // flip DRAFT -> ACTIVE and go live having never entered the review queue.
+  const goingLive = data.status === "ACTIVE" || (!data.status && item.status === "ACTIVE");
+  if (hasCoreFieldUpdate || goingLive) {
+    const nextCategoryId = data.categoryId ?? item.categoryId;
+    const category = await prisma.category.findUnique({
+      where: { id: nextCategoryId },
+      select: { id: true, name: true, slug: true }
+    });
+    if (!category) throw new NotFoundError("Category not found");
+
+    const assessment = assessListingSubmission({
+      title: data.title ?? item.title,
+      description: data.description ?? item.description,
+      price: data.price ?? Number(item.price),
+      images: data.images ?? parseImages(item.images),
+      category
+    });
+
+    if (assessment.shouldReview) {
+      updateData.status = "PENDING_REVIEW";
+      return prisma.$transaction(async (tx) => {
+        const saved = await tx.item.update({ where: { id }, data: updateData });
+        const existing = await tx.reviewQueue.findFirst({
+          where: { targetType: "ITEM", targetId: id, status: "PENDING" },
+          select: { id: true }
+        });
+        if (!existing) {
+          await tx.reviewQueue.create({
+            data: {
+              targetType: "ITEM",
+              targetId: id,
+              submissionType: "NEW_LISTING",
+              submittedById: userId,
+              status: "PENDING",
+              riskLevel: assessment.riskLevel,
+              flags: JSON.stringify(assessment.flags),
+              summary: assessment.summary
+            }
+          });
+        }
+        return withParsedImages(saved);
+      });
+    }
+  }
 
   const updated = await prisma.item.update({
     where: { id },
