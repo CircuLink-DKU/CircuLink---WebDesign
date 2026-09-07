@@ -54,8 +54,8 @@ class ApiClient {
       const errorData = await response.json().catch(() => ({ error: { message: response.statusText } }));
       throw new ApiError(
         response.status,
-        errorData.error?.message || "Request failed",
-        errorData.error?.code
+        errorData.error?.message || errorData.message || "Request failed",
+        errorData.error?.code || errorData.code
       );
     }
 
@@ -128,6 +128,20 @@ class ApiClient {
     return this.request<{ data: { expiresAt: string } }>("/auth/verify/request", {
       method: "POST",
       body: JSON.stringify({ email }),
+    });
+  }
+
+  async requestPasswordReset(email: string) {
+    return this.request<{ data: { expiresAt?: string } }>("/auth/password/forgot", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    });
+  }
+
+  async resetPassword(token: string, password: string) {
+    return this.request<void>("/auth/password/reset", {
+      method: "POST",
+      body: JSON.stringify({ token, password }),
     });
   }
 

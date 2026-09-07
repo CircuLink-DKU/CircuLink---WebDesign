@@ -78,7 +78,13 @@ const refreshExpiresAt = () => {
 const createEmailVerificationTokenRecord = async (userId: string) => {
   const token = crypto.randomBytes(32).toString("hex");
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
-  await prisma.emailVerificationToken.create({ data: { userId, token, expiresAt } });
+  await prisma.$transaction([
+    prisma.emailVerificationToken.updateMany({
+      where: { userId, usedAt: null },
+      data: { usedAt: new Date() }
+    }),
+    prisma.emailVerificationToken.create({ data: { userId, token, expiresAt } })
+  ]);
   return { token, expiresAt };
 };
 
@@ -194,32 +200,41 @@ export const verifyEmailToken = async (token: string) => {
   if (!record || record.usedAt) throw new AuthError("Invalid or used token");
   if (record.expiresAt <= new Date()) throw new AuthError("Token expired");
 
-  await prisma.$transaction([
-    prisma.emailVerificationToken.update({
-      where: { token },
+  await prisma.$transaction(async (tx) => {
+    const consumed = await tx.emailVerificationToken.updateMany({
+      where: { id: record.id, usedAt: null, expiresAt: { gt: new Date() } },
       data: { usedAt: new Date() }
-    }),
-    prisma.user.update({
+    });
+    if (consumed.count !== 1) throw new AuthError("Invalid, used, or expired token");
+
+    await tx.user.update({
       where: { id: record.userId },
       data: { emailVerifiedAt: new Date() }
-    })
-  ]);
+    });
+  });
 };
 
 export const requestPasswordReset = async (email: string) => {
   const user = await prisma.user.findUnique({ where: { email } });
-  if (!user) throw new NotFoundError("User not found");
+  // Keep the public response indistinguishable to prevent account enumeration.
+  if (!user) return {};
 
   const token = crypto.randomBytes(32).toString("hex");
   const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
 
-  await prisma.passwordResetToken.create({
-    data: { userId: user.id, token, expiresAt }
-  });
+  await prisma.$transaction([
+    prisma.passwordResetToken.updateMany({
+      where: { userId: user.id, usedAt: null },
+      data: { usedAt: new Date() }
+    }),
+    prisma.passwordResetToken.create({
+      data: { userId: user.id, token, expiresAt }
+    })
+  ]);
 
   await sendPasswordResetEmail(user.email, token);
 
-  return env.NODE_ENV === "production" ? { expiresAt } : { token, expiresAt };
+  return env.NODE_ENV === "production" ? {} : { token, expiresAt };
 };
 
 export const resetPassword = async (token: string, password: string) => {
@@ -229,16 +244,26 @@ export const resetPassword = async (token: string, password: string) => {
 
   const passwordHash = await bcrypt.hash(password, authConfig.bcryptRounds);
 
-  await prisma.$transaction([
-    prisma.passwordResetToken.update({
-      where: { token },
+  await prisma.$transaction(async (tx) => {
+    const consumed = await tx.passwordResetToken.updateMany({
+      where: { id: record.id, usedAt: null, expiresAt: { gt: new Date() } },
       data: { usedAt: new Date() }
-    }),
-    prisma.user.update({
+    });
+    if (consumed.count !== 1) throw new AuthError("Invalid, used, or expired token");
+
+    await tx.passwordResetToken.updateMany({
+      where: { userId: record.userId, usedAt: null },
+      data: { usedAt: new Date() }
+    });
+    await tx.refreshToken.updateMany({
+      where: { userId: record.userId, revokedAt: null },
+      data: { revokedAt: new Date() }
+    });
+    await tx.user.update({
       where: { id: record.userId },
       data: { passwordHash }
-    })
-  ]);
+    });
+  });
 };
 
 export const updateUserProfile = async (

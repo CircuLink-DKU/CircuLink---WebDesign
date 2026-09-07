@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { X, Mail, Lock, User, Phone } from 'lucide-react';
 import { signIn, signUp } from '../lib/backend';
 import { useLanguage } from '../context/LanguageContext';
+import { useNavigate } from 'react-router-dom';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -12,6 +13,7 @@ interface AuthModalProps {
 
 const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, mode, onModeChange }) => {
   const { lang } = useLanguage();
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -140,6 +142,18 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, mode, onModeChan
                 required
               />
             </div>
+            {mode === 'signin' && (
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  navigate('/forgot-password');
+                }}
+                className="mt-2 block text-sm font-medium text-blue-600 hover:text-blue-700"
+              >
+                {lang === 'zh' ? '忘记密码？' : 'Forgot password?'}
+              </button>
+            )}
           </div>
 
           <div>
@@ -156,7 +170,7 @@ const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, mode, onModeChan
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 placeholder={lang === 'zh' ? '你的密码' : 'Your password'}
                 required
-                minLength={6}
+                minLength={8}
               />
             </div>
           </div>

@@ -24,6 +24,8 @@ import AIRecommendationPage from './pages/AIRecommendationPage';
 import OrdersPage from './pages/OrdersPage';
 import OrderDetailPage from './pages/OrderDetailPage';
 import VerifyEmailPage from './pages/VerifyEmailPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 import NewItemModal from './components/NewItemModal';
 import FavoritesModal from './components/FavoritesModal';
 
@@ -99,6 +101,8 @@ function App() {
           <Route path="/orders" element={<MarketplaceRoute><OrdersPage /></MarketplaceRoute>} />
           <Route path="/orders/:id" element={<MarketplaceRoute><OrderDetailPage /></MarketplaceRoute>} />
           <Route path="/verify-email" element={<VerifyEmailPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
         </Routes>
 
         <NewItemModal
