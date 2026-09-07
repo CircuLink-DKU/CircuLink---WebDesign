@@ -1,127 +1,81 @@
 import React, { useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { CheckCircle2, Lock } from 'lucide-react';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
 import { apiClient, ApiError } from '../lib/api';
 
-type Status = 'form' | 'submitting' | 'success' | 'error';
-
 const ResetPasswordPage: React.FC = () => {
-  const navigate = useNavigate();
   const { lang } = useLanguage();
   const [searchParams] = useSearchParams();
-  const token = searchParams.get('token') || '';
-
+  const token = searchParams.get('token') ?? '';
   const [password, setPassword] = useState('');
-  const [confirm, setConfirm] = useState('');
-  const [status, setStatus] = useState<Status>('form');
-  const [errorMessage, setErrorMessage] = useState('');
+  const [confirmation, setConfirmation] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [error, setError] = useState('');
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!token) {
-      setStatus('error');
-      setErrorMessage(lang === 'zh' ? '重置链接无效,缺少 token。' : 'Invalid reset link: missing token.');
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setError('');
+    if (password !== confirmation) {
+      setError(lang === 'zh' ? '两次输入的密码不一致。' : 'The passwords do not match.');
       return;
     }
-    if (password.length < 8) {
-      setErrorMessage(lang === 'zh' ? '密码至少 8 位。' : 'Password must be at least 8 characters.');
-      return;
-    }
-    if (password !== confirm) {
-      setErrorMessage(lang === 'zh' ? '两次输入的密码不一致。' : 'Passwords do not match.');
-      return;
-    }
-
-    setStatus('submitting');
-    setErrorMessage('');
+    setLoading(true);
     try {
       await apiClient.resetPassword(token, password);
-      setStatus('success');
-    } catch (error) {
-      setStatus('form');
-      setErrorMessage(
-        error instanceof ApiError
-          ? error.message
-          : lang === 'zh' ? '重置失败,请稍后重试。' : 'Reset failed, please try again later.'
-      );
+      setSuccess(true);
+    } catch (requestError) {
+      setError(requestError instanceof ApiError
+        ? requestError.message
+        : lang === 'zh' ? '重置失败，请重新申请链接。' : 'Reset failed. Please request a new link.');
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-emerald-100 to-sky-50 flex flex-col">
-      <div className="p-6">
-        <button
-          onClick={() => navigate('/')}
-          className="text-3xl text-emerald-800"
-          aria-label={lang === 'zh' ? '返回' : 'Back'}
-        >
-          ←
-        </button>
-      </div>
-
-      <div className="flex-1 flex items-start justify-center pt-8">
-        <div className="w-3/4 md:w-1/2 lg:w-1/3 bg-gradient-to-r from-emerald-100/60 via-emerald-50 to-sky-100/70 rounded-xl p-10 shadow-lg border border-emerald-200">
-          {status === 'success' ? (
-            <div className="text-center space-y-4">
-              <h2 className="text-2xl font-semibold text-emerald-800">
-                {lang === 'zh' ? '密码已重置' : 'Password reset'}
-              </h2>
-              <p className="text-emerald-700">
-                {lang === 'zh' ? '你的密码已更新,请用新密码登录。' : 'Your password has been updated. Please sign in with your new password.'}
-              </p>
-              <button
-                onClick={() => navigate('/')}
-                className="mt-2 px-6 py-2 rounded-lg bg-emerald-700 text-white hover:bg-emerald-800 transition-colors"
-              >
-                {lang === 'zh' ? '回到首页' : 'Back to home'}
-              </button>
-            </div>
-          ) : (
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <h2 className="text-2xl font-semibold text-emerald-800 text-center">
-                {lang === 'zh' ? '重置密码' : 'Reset password'}
-              </h2>
-              <div>
-                <label className="block text-sm font-medium text-emerald-800 mb-1">
-                  {lang === 'zh' ? '新密码' : 'New password'}
-                </label>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  minLength={8}
-                  required
-                  className="w-full px-3 py-2 rounded-lg border border-emerald-200 focus:outline-none focus:border-emerald-500 bg-white"
-                />
+    <main className="min-h-[70vh] bg-gradient-to-br from-emerald-50 via-white to-sky-50 px-4 py-16">
+      <div className="mx-auto max-w-md rounded-2xl border border-emerald-100 bg-white p-8 shadow-lg">
+        {success ? (
+          <div className="text-center">
+            <CheckCircle2 className="mx-auto h-12 w-12 text-emerald-600" />
+            <h1 className="mt-4 text-2xl font-bold text-gray-900">{lang === 'zh' ? '密码已更新' : 'Password updated'}</h1>
+            <p className="mt-2 text-sm text-gray-600">{lang === 'zh' ? '现在可以使用新密码登录。' : 'You can now sign in with your new password.'}</p>
+            <Link to="/" className="mt-6 inline-block rounded-lg bg-emerald-700 px-6 py-2.5 font-medium text-white hover:bg-emerald-800">
+              {lang === 'zh' ? '返回首页' : 'Back to home'}
+            </Link>
+          </div>
+        ) : (
+          <>
+            <h1 className="text-2xl font-bold text-gray-900">{lang === 'zh' ? '设置新密码' : 'Set a new password'}</h1>
+            <p className="mt-2 text-sm text-gray-600">{lang === 'zh' ? '新密码至少需要 8 个字符。' : 'Your new password must contain at least 8 characters.'}</p>
+            {!token ? (
+              <div className="mt-6 rounded-xl bg-rose-50 p-4 text-sm text-rose-700" role="alert">
+                {lang === 'zh' ? '链接无效：缺少重置凭证。请重新申请邮件。' : 'Invalid link: the reset token is missing. Please request a new email.'}
+                <Link to="/forgot-password" className="mt-3 block font-medium underline">{lang === 'zh' ? '重新申请' : 'Request a new link'}</Link>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-emerald-800 mb-1">
-                  {lang === 'zh' ? '确认新密码' : 'Confirm new password'}
-                </label>
-                <input
-                  type="password"
-                  value={confirm}
-                  onChange={(e) => setConfirm(e.target.value)}
-                  minLength={8}
-                  required
-                  className="w-full px-3 py-2 rounded-lg border border-emerald-200 focus:outline-none focus:border-emerald-500 bg-white"
-                />
-              </div>
-              {errorMessage && <p className="text-sm text-rose-600">{errorMessage}</p>}
-              <button
-                type="submit"
-                disabled={status === 'submitting'}
-                className="w-full px-6 py-2 rounded-lg bg-emerald-700 text-white hover:bg-emerald-800 transition-colors disabled:opacity-60"
-              >
-                {status === 'submitting'
-                  ? (lang === 'zh' ? '提交中…' : 'Submitting…')
-                  : (lang === 'zh' ? '重置密码' : 'Reset password')}
-              </button>
-            </form>
-          )}
-        </div>
+            ) : (
+              <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+                {[{ id: 'new-password', label: lang === 'zh' ? '新密码' : 'New password', value: password, setter: setPassword }, { id: 'confirm-password', label: lang === 'zh' ? '确认新密码' : 'Confirm password', value: confirmation, setter: setConfirmation }].map((field) => (
+                  <div key={field.id}>
+                    <label htmlFor={field.id} className="mb-1 block text-sm font-medium text-gray-700">{field.label}</label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
+                      <input id={field.id} type="password" value={field.value} onChange={(event) => field.setter(event.target.value)} required minLength={8} autoComplete="new-password" className="w-full rounded-lg border border-gray-300 py-2.5 pl-10 pr-4 focus:border-transparent focus:ring-2 focus:ring-emerald-500" />
+                    </div>
+                  </div>
+                ))}
+                {error && <p className="rounded-lg bg-rose-50 p-3 text-sm text-rose-700" role="alert">{error}</p>}
+                <button type="submit" disabled={loading} className="w-full rounded-lg bg-emerald-700 px-4 py-2.5 font-medium text-white hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60">
+                  {loading ? (lang === 'zh' ? '更新中…' : 'Updating…') : (lang === 'zh' ? '更新密码' : 'Update password')}
+                </button>
+              </form>
+            )}
+          </>
+        )}
       </div>
-    </div>
+    </main>
   );
 };
 

@@ -102,16 +102,18 @@ describe("auth password reset", () => {
     expect(known.status).toBe(unknown.status);
     expect(known.status).toBe(200);
 
-    // Both answer with the same envelope and a real expiry, so a caller cannot
-    // tell the two apart from the success payload.
+    // Same top-level envelope either way.
     expect(Object.keys(known.body)).toEqual(["data"]);
     expect(Object.keys(unknown.body)).toEqual(["data"]);
-    expect(typeof known.body.data.expiresAt).toBe("string");
-    expect(typeof unknown.body.data.expiresAt).toBe("string");
 
-    // No reset token is ever minted for an address that does not exist.
-    expect(Object.keys(unknown.body.data)).toEqual(["expiresAt"]);
+    // Nothing is ever minted or echoed for an address that does not exist.
+    expect(unknown.body.data).toEqual({});
+
+    // In production the responses are byte-identical: the reset token is only
+    // echoed when EXPOSE_DEV_TOKENS is explicitly enabled (as the test env does),
+    // so this is the ONLY thing that distinguishes them, and it fails closed.
     expect(unknown.body.data.token).toBeUndefined();
+    expect(typeof known.body.data.token).toBe("string");
   });
 
   it("reset rotates the password, burns the token and kills existing sessions", async () => {

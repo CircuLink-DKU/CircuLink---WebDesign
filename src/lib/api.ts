@@ -123,8 +123,8 @@ class ApiClient {
       const errorData = await response.json().catch(() => ({ error: { message: response.statusText } }));
       throw new ApiError(
         response.status,
-        errorData.error?.message || "Request failed",
-        errorData.error?.code
+        errorData.error?.message || errorData.message || "Request failed",
+        errorData.error?.code || errorData.code
       );
     }
 
@@ -207,7 +207,7 @@ class ApiClient {
   }
 
   async requestPasswordReset(email: string) {
-    return this.request<{ data: { expiresAt: string } }>("/auth/password/forgot", {
+    return this.request<{ data: { expiresAt?: string } }>("/auth/password/forgot", {
       method: "POST",
       body: JSON.stringify({ email }),
     });

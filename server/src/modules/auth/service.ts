@@ -78,7 +78,13 @@ const refreshExpiresAt = () => {
 const createEmailVerificationTokenRecord = async (userId: string) => {
   const token = crypto.randomBytes(32).toString("hex");
   const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
-  await prisma.emailVerificationToken.create({ data: { userId, token, expiresAt } });
+  await prisma.$transaction([
+    prisma.emailVerificationToken.updateMany({
+      where: { userId, usedAt: null },
+      data: { usedAt: new Date() }
+    }),
+    prisma.emailVerificationToken.create({ data: { userId, token, expiresAt } })
+  ]);
   return { token, expiresAt };
 };
 
@@ -205,38 +211,44 @@ export const verifyEmailToken = async (token: string) => {
   if (!record || record.usedAt) throw new AuthError("Invalid or used token");
   if (record.expiresAt <= new Date()) throw new AuthError("Token expired");
 
-  await prisma.$transaction([
-    prisma.emailVerificationToken.update({
-      where: { token },
+  await prisma.$transaction(async (tx) => {
+    const consumed = await tx.emailVerificationToken.updateMany({
+      where: { id: record.id, usedAt: null, expiresAt: { gt: new Date() } },
       data: { usedAt: new Date() }
-    }),
-    prisma.user.update({
+    });
+    if (consumed.count !== 1) throw new AuthError("Invalid, used, or expired token");
+
+    await tx.user.update({
       where: { id: record.userId },
       data: { emailVerifiedAt: new Date() }
-    })
-  ]);
+    });
+  });
 };
 
 export const requestPasswordReset = async (email: string) => {
-  const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
   const user = await prisma.user.findUnique({ where: { email } });
-
-  // Always return the same shape regardless of whether the email exists, so this
-  // endpoint can't be used to enumerate registered accounts. Only actually issue
-  // a token + send mail when the user exists.
-  if (!user) {
-    return { expiresAt };
-  }
+  // Keep the public response indistinguishable to prevent account enumeration.
+  if (!user) return {};
 
   const token = crypto.randomBytes(32).toString("hex");
-  await prisma.passwordResetToken.create({
-    data: { userId: user.id, token, expiresAt }
-  });
+  const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+
+  await prisma.$transaction([
+    prisma.passwordResetToken.updateMany({
+      where: { userId: user.id, usedAt: null },
+      data: { usedAt: new Date() }
+    }),
+    prisma.passwordResetToken.create({
+      data: { userId: user.id, token, expiresAt }
+    })
+  ]);
 
   await sendPasswordResetEmail(user.email, token);
 
-  // Same fail-closed rule as email verification — see requestEmailVerification.
-  return serverConfig.exposeDevTokens ? { token, expiresAt } : { expiresAt };
+  // Never echo the raw token unless explicitly opted in. This must fail CLOSED:
+  // gating on `NODE_ENV !== "production"` would turn a deployment that forgot to
+  // set NODE_ENV into an unauthenticated account-takeover primitive.
+  return serverConfig.exposeDevTokens ? { token, expiresAt } : {};
 };
 
 export const resetPassword = async (token: string, password: string) => {
@@ -246,22 +258,26 @@ export const resetPassword = async (token: string, password: string) => {
 
   const passwordHash = await bcrypt.hash(password, authConfig.bcryptRounds);
 
-  await prisma.$transaction([
-    prisma.passwordResetToken.update({
-      where: { token },
+  await prisma.$transaction(async (tx) => {
+    const consumed = await tx.passwordResetToken.updateMany({
+      where: { id: record.id, usedAt: null, expiresAt: { gt: new Date() } },
       data: { usedAt: new Date() }
-    }),
-    prisma.user.update({
-      where: { id: record.userId },
-      data: { passwordHash }
-    }),
-    // Revoke all existing sessions so a password reset actually locks out anyone
-    // (e.g. an attacker) still holding a refresh token for this account.
-    prisma.refreshToken.updateMany({
+    });
+    if (consumed.count !== 1) throw new AuthError("Invalid, used, or expired token");
+
+    await tx.passwordResetToken.updateMany({
+      where: { userId: record.userId, usedAt: null },
+      data: { usedAt: new Date() }
+    });
+    await tx.refreshToken.updateMany({
       where: { userId: record.userId, revokedAt: null },
       data: { revokedAt: new Date() }
-    })
-  ]);
+    });
+    await tx.user.update({
+      where: { id: record.userId },
+      data: { passwordHash }
+    });
+  });
 };
 
 export const updateUserProfile = async (
