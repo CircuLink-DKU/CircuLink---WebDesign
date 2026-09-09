@@ -31,6 +31,14 @@ export const TEST_ENV: Record<string, string> = {
   // IP-keyed limiter would otherwise make results depend on how recently the
   // suite last ran.
   DISABLE_RATE_LIMIT: "true",
+  // Force local-disk upload storage regardless of the developer's own .env —
+  // otherwise a dev machine with real R2 credentials configured makes the
+  // upload tests non-deterministic (uploads go to R2 instead of /uploads/).
+  R2_ENDPOINT: "",
+  R2_ACCESS_KEY_ID: "",
+  R2_SECRET_ACCESS_KEY: "",
+  R2_BUCKET: "",
+  R2_PUBLIC_URL: "",
 };
 
 export const applyTestEnv = () => {

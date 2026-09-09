@@ -2,6 +2,17 @@ generator client {
   provider = "prisma-client-js"
 }
 
+// server/ has its own node_modules (separate from the root's), so the
+// default generator above (which writes to the nearest node_modules,
+// i.e. the root's) never reaches it — leaving a stale stub client there
+// that produces bogus "no exported member" type errors. Generate a
+// second copy straight into server/node_modules so its own
+// @prisma/client is real.
+generator server_client {
+  provider = "prisma-client-js"
+  output   = "../server/node_modules/.prisma/client"
+}
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
