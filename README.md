@@ -55,8 +55,9 @@ graph TB
     end
 
     subgraph Data["🗄️ Data Layer"]
-        Supabase[("Supabase\nPostgreSQL\n(Production)")]
-        SQLite[("SQLite via Prisma\n(Local Dev)")]
+        Postgres[("PostgreSQL via Prisma\n(Local + Supabase-hosted)")]
+        R2[("Cloudflare R2\nImage Storage")]
+        SMTP["Aliyun DirectMail\nSMTP (email)"]
     end
 
     subgraph AI["🤖 AI Layer — Planned"]
@@ -67,9 +68,9 @@ graph TB
 
     SPA -->|"REST calls"| JWT
     SPA -->|"Image upload"| Upload
-    SPA -->|"Direct via supabase-js"| Supabase
-    JWT -->|"Prisma ORM"| SQLite
-    JWT -->|"Prisma ORM"| Supabase
+    JWT -->|"Prisma ORM"| Postgres
+    Upload -->|"Stores to"| R2
+    JWT -->|"Verification/reset emails"| SMTP
     Upload -->|"Planned"| Rekognition
     SPA -->|"Planned"| LLM
     LLM -->|"Planned"| Bedrock
@@ -81,7 +82,7 @@ graph TB
 
     class SPA clientStyle
     class JWT,Upload authStyle
-    class Supabase,SQLite dataStyle
+    class Postgres,R2,SMTP dataStyle
     class LLM,Rekognition,Bedrock aiStyle
 ```
 
@@ -91,20 +92,25 @@ graph TB
 |-------|-----------|----------------|
 | **Frontend SPA** | Vite + React 18 + TypeScript | UI, routing, state management |
 | **Styling** | Tailwind CSS + lucide-react | Component design system |
-| **Auth Server** | Express.js + JWT + bcryptjs | Token issue/refresh, file uploads |
+| **Auth Server** | Express.js + JWT + bcryptjs | Token issue/refresh, verification/reset emails, uploads |
 | **ORM** | Prisma | Type-safe DB access |
-| **Database (local)** | SQLite | Development database |
-| **Database (prod)** | Supabase (PostgreSQL) | Cloud database + auth |
-| **AI (planned)** | OpenAI-compatible API + Amazon Bedrock | Smart listings, recommendations |
+| **Database** | PostgreSQL (local or Supabase-hosted) | Primary data store |
+| **Image Storage** | Cloudflare R2 (falls back to local disk in dev) | Listing photos |
+| **Email** | Aliyun DirectMail SMTP (falls back to console logging in dev) | Verification & password reset |
+| **Testing** | Vitest integration suite (`server/tests`) | Auth, items, orders, messages, security |
+| **AI (planned)** | OpenAI-compatible API + Amazon Bedrock/Rekognition | Smart listings, recommendations, moderation |
 
 ---
 
 ## ✨ Features
 
 - 🛒 **Marketplace** — Post, browse, search, and filter second-hand items by category, price, and condition
-- 🎁 **Donation Board** — Give or receive items for free within the DKU community
-- 🔐 **JWT Authentication** — Secure login with token refresh via the Express auth server
-- 📸 **Image Uploads** — Attach photos to listings via multer file handling
+- 🎁 **Donation Board** — Give or receive items for free within the DKU community, with admin review of donation submissions
+- 🔐 **JWT Authentication** — Secure login with access/refresh token rotation via the Express auth server
+- ✉️ **Email Verification & Password Reset** — Aliyun DirectMail SMTP integration, with automatic log-only fallback in local dev
+- 📸 **Image Uploads** — Cloudflare R2 object storage in production, with automatic fallback to local disk (`uploads/`) in dev
+- 🛡️ **Admin Console** — Role-based admin pages for managing users (`ADMIN`/`USER` roles), reviewing donations, and moderating listings
+- 💬 **Messaging & Orders** — In-app buyer/seller messaging and order tracking
 - 🏷️ **Category System** — Items organized by Development Boards, Components, Tools, Kits, Displays, Power & Batteries
 - 📱 **Responsive Design** — Tailwind-first layout, works on desktop and mobile
 
@@ -187,6 +193,15 @@ npm run dev
 Then open [http://localhost:5173](http://localhost:5173) in your browser.
 
 > The Express auth server runs on port `4000` by default (`VITE_API_URL=http://localhost:4000/api`).
+> Email (Aliyun DirectMail) and image storage (Cloudflare R2) are optional in dev — if left unconfigured in `.env`, emails are logged to the console instead of sent, and uploads fall back to local disk (`uploads/`).
+
+### Running Tests
+
+```bash
+npm run typecheck   # TypeScript checks (client + server)
+npm run lint        # ESLint
+npm test            # Build server + run the Vitest integration suite (server/tests)
+```
 
 ---
 
@@ -195,23 +210,26 @@ Then open [http://localhost:5173](http://localhost:5173) in your browser.
 ```
 CircuLink---WebDesign/
 ├── src/                        # Vite + React + TypeScript SPA
-│   ├── components/             # Reusable UI components
-│   ├── pages/                  # Route-level page components
+│   ├── components/             # Reusable UI components (Header, etc.)
+│   ├── pages/                  # Route-level page components (Buy, Sell, Donation,
+│   │                           #   Admin*, Orders, Messages, Profile, Auth flows…)
 │   ├── hooks/                  # Custom React hooks
-│   ├── context/                # React context providers
+│   ├── context/                # React context providers (auth, cart…)
 │   ├── lib/                    # Supabase client & utilities
-│   ├── data/                   # Static/seed data
 │   └── types/                  # TypeScript type definitions
-├── server/                     # Express.js auth server
-│   └── src/
-│       └── server.js           # JWT auth routes & multer uploads
+├── server/                     # Express.js auth/API server
+│   ├── src/                    # Routes, middleware, email & storage adapters
+│   └── tests/                  # Vitest integration test suite (auth, items,
+│                               #   orders, messages, security)
 ├── prisma/                     # Prisma ORM
-│   └── schema.prisma           # Database schema (User, Item, Category…)
+│   ├── schema.prisma           # Database schema (User, Item, Category…)
+│   └── migrations/             # Prisma migration history
 ├── supabase/
 │   └── migrations/             # Supabase SQL migrations
+├── deploy/                     # systemd service unit & nginx config for prod
+├── docs/                       # Deployment runbook, API docs, admin guides
+├── scripts/                    # Dev helper utilities (smoke tests, seeding)
 ├── public/                     # Static assets served by Vite
-├── scripts/                    # Dev helper utilities
-├── docs/                       # Additional documentation
 ├── .env.example                # Environment variable template
 ├── vite.config.ts              # Vite configuration
 ├── tailwind.config.js          # Tailwind CSS configuration
@@ -226,12 +244,16 @@ Key entities in `prisma/schema.prisma`:
 
 | Model | Key Fields |
 |-------|-----------|
-| **User** | `email`, `passwordHash`, `name`, `role` |
+| **User** | `email`, `passwordHash`, `name`, `role` (`ADMIN` / `USER`), email verification & reset-token fields |
 | **Item** | `title`, `description`, `price`, `condition`, `status`, `images[]`, `sellerId`, `categoryId` |
 | **Category** | `name`, `slug` (e.g. `dev-boards`, `components`) |
+| **Order** | Buyer/seller linkage, order status |
+| **Message** | In-app buyer/seller messaging |
 
 Item `condition` values: `LIKE_NEW`, `GOOD`
 Item `status` values: `ACTIVE`, `SOLD`, `DONATED`
+
+> 🛡️ Only accounts with `role = ADMIN` can access `/admin/*` routes (user role management, donation review, listing moderation).
 
 ---
 
